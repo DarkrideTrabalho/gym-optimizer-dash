@@ -11,9 +11,23 @@ import {
   ResponsiveContainer,
 } from "recharts";
 
+interface PreferenceStats {
+  totalStudents: number;
+  mostPopularClass: string;
+  mostPopularDay: string;
+  mostPopularTime: string;
+  mostUnavailableDay: string;
+  mostUnavailableTime: string;
+}
+
 const Dashboard = () => {
   const [favoriteClassesData, setFavoriteClassesData] = useState([]);
+  const [firstChoiceData, setFirstChoiceData] = useState([]);
   const [timeBlocksData, setTimeBlocksData] = useState([]);
+  const [classChoicesDistribution, setClassChoicesDistribution] = useState([]);
+  const [preferredDaysData, setPreferredDaysData] = useState([]);
+  const [stats, setStats] = useState<PreferenceStats | null>(null);
+  const [timeByDayMatrix, setTimeByDayMatrix] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -28,7 +42,10 @@ const Dashboard = () => {
 
       if (error) throw error;
 
-      // Process data for favorite classes
+      // Process data for overall stats
+      const totalStudents = data.length;
+
+      // Process data for favorite classes (all choices)
       const classesCount: { [key: string]: number } = {};
       data.forEach((preference) => {
         [
@@ -42,27 +59,106 @@ const Dashboard = () => {
         });
       });
 
+      // Process first choice data
+      const firstChoiceCount: { [key: string]: number } = {};
+      data.forEach((preference) => {
+        const className = preference.favorite_class_1;
+        firstChoiceCount[className] = (firstChoiceCount[className] || 0) + 1;
+      });
+
+      // Process class choices distribution
+      const choicesDistribution = [];
+      for (let i = 1; i <= 5; i++) {
+        const choiceCount: { [key: string]: number } = {};
+        data.forEach((preference) => {
+          const className = preference[`favorite_class_${i}`];
+          choiceCount[className] = (choiceCount[className] || 0) + 1;
+        });
+        choicesDistribution.push({
+          choice: i,
+          distribution: choiceCount,
+        });
+      }
+
+      // Process preferred days data
+      const daysCount: { [key: string]: number } = {};
+      const unavailableDaysCount: { [key: string]: number } = {};
+      data.forEach((preference) => {
+        preference.preferred_days.forEach((day: string) => {
+          daysCount[day] = (daysCount[day] || 0) + 1;
+        });
+        preference.unavailable_days.forEach((day: string) => {
+          unavailableDaysCount[day] = (unavailableDaysCount[day] || 0) + 1;
+        });
+      });
+
+      // Process time blocks data
+      const timeBlocks: { [key: string]: number } = {};
+      const timeByDay: { [key: string]: { [key: string]: number } } = {};
+      data.forEach((preference) => {
+        preference.time_blocks.forEach((block: string) => {
+          timeBlocks[block] = (timeBlocks[block] || 0) + 1;
+          
+          preference.preferred_days.forEach((day: string) => {
+            if (!timeByDay[day]) {
+              timeByDay[day] = {};
+            }
+            timeByDay[day][block] = (timeByDay[day][block] || 0) + 1;
+          });
+        });
+      });
+
+      // Calculate most popular/unavailable stats
+      const mostPopularClass = Object.entries(classesCount).sort((a, b) => b[1] - a[1])[0][0];
+      const mostPopularDay = Object.entries(daysCount).sort((a, b) => b[1] - a[1])[0][0];
+      const mostPopularTime = Object.entries(timeBlocks).sort((a, b) => b[1] - a[1])[0][0];
+      const mostUnavailableDay = Object.entries(unavailableDaysCount).sort((a, b) => b[1] - a[1])[0][0];
+
+      // Transform data for charts
       const favoriteClasses = Object.entries(classesCount).map(([name, count]) => ({
         name,
         count,
       }));
-      favoriteClasses.sort((a, b) => b.count - a.count);
-      setFavoriteClassesData(favoriteClasses);
-
-      // Process data for time blocks
-      const timeBlocks: { [key: string]: number } = {};
-      data.forEach((preference) => {
-        preference.time_blocks.forEach((block: string) => {
-          timeBlocks[block] = (timeBlocks[block] || 0) + 1;
-        });
-      });
-
+      const firstChoiceClasses = Object.entries(firstChoiceCount).map(([name, count]) => ({
+        name,
+        count,
+      }));
       const timeBlocksArray = Object.entries(timeBlocks).map(([time, count]) => ({
         time,
         count,
       }));
-      timeBlocksArray.sort((a, b) => b.count - a.count);
+      const preferredDaysArray = Object.entries(daysCount).map(([day, count]) => ({
+        day,
+        count,
+      }));
+
+      // Create time by day matrix
+      const allTimeBlocks = Array.from(new Set(data.flatMap(p => p.time_blocks)));
+      const allDays = Array.from(new Set(data.flatMap(p => p.preferred_days)));
+      
+      const matrix = allDays.map(day => {
+        const row = { day };
+        allTimeBlocks.forEach(time => {
+          row[time] = timeByDay[day]?.[time] || 0;
+        });
+        return row;
+      });
+
+      // Update state
+      setFavoriteClassesData(favoriteClasses);
+      setFirstChoiceData(firstChoiceClasses);
       setTimeBlocksData(timeBlocksArray);
+      setClassChoicesDistribution(choicesDistribution);
+      setPreferredDaysData(preferredDaysArray);
+      setTimeByDayMatrix(matrix);
+      setStats({
+        totalStudents,
+        mostPopularClass,
+        mostPopularDay,
+        mostPopularTime,
+        mostUnavailableDay,
+        mostUnavailableTime: "N/A", // Add logic if needed
+      });
 
       setLoading(false);
     } catch (error) {
@@ -80,20 +176,41 @@ const Dashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-7xl mx-auto space-y-8">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold text-gray-900">Dashboard de Análise</h1>
-          <p className="mt-2 text-gray-600">
-            Visualização das preferências dos alunos
-          </p>
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 space-y-8">
+        {/* Resumo Geral */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-2xl font-bold mb-4">Resumo Geral</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <p className="text-gray-600">Total de Alunos</p>
+              <p className="text-2xl font-bold">{stats?.totalStudents}</p>
+            </div>
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <p className="text-gray-600">Aula Mais Popular</p>
+              <p className="text-2xl font-bold">{stats?.mostPopularClass}</p>
+            </div>
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <p className="text-gray-600">Dia Mais Popular</p>
+              <p className="text-2xl font-bold">{stats?.mostPopularDay}</p>
+            </div>
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <p className="text-gray-600">Horário Mais Popular</p>
+              <p className="text-2xl font-bold">{stats?.mostPopularTime}</p>
+            </div>
+            <div className="p-4 bg-gray-50 rounded-lg">
+              <p className="text-gray-600">Dia Mais Indisponível</p>
+              <p className="text-2xl font-bold">{stats?.mostUnavailableDay}</p>
+            </div>
+          </div>
         </div>
 
+        {/* Gráfico de Primeira Escolha */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Aulas Mais Populares</h2>
+          <h2 className="text-xl font-semibold mb-4">Aulas de Primeira Escolha</h2>
           <div className="h-[400px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={favoriteClassesData}>
+              <BarChart data={firstChoiceData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
                 <YAxis />
@@ -104,18 +221,91 @@ const Dashboard = () => {
           </div>
         </div>
 
+        {/* Distribuição de Escolhas */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Horários Mais Procurados</h2>
-          <div className="h-[400px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={timeBlocksData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="time" angle={-45} textAnchor="end" height={100} />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="count" fill="#10b981" />
-              </BarChart>
-            </ResponsiveContainer>
+          <h2 className="text-xl font-semibold mb-4">Distribuição de Escolhas</h2>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead>
+                <tr>
+                  <th className="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Aula
+                  </th>
+                  {[1, 2, 3, 4, 5].map((choice) => (
+                    <th
+                      key={choice}
+                      className="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    >
+                      {choice}ª Escolha
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {Array.from(
+                  new Set(
+                    classChoicesDistribution.flatMap((choice) =>
+                      Object.keys(choice.distribution)
+                    )
+                  )
+                ).map((className) => (
+                  <tr key={className}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {className}
+                    </td>
+                    {classChoicesDistribution.map((choice, index) => (
+                      <td
+                        key={index}
+                        className="px-6 py-4 whitespace-nowrap text-sm text-gray-500"
+                      >
+                        {choice.distribution[className] || 0}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Matriz de Frequência */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-xl font-semibold mb-4">Matriz de Frequência: Horários por Dia</h2>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead>
+                <tr>
+                  <th className="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Dia
+                  </th>
+                  {timeBlocksData.map((block) => (
+                    <th
+                      key={block.time}
+                      className="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                    >
+                      {block.time}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {timeByDayMatrix.map((row) => (
+                  <tr key={row.day}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      {row.day}
+                    </td>
+                    {timeBlocksData.map((block) => (
+                      <td
+                        key={block.time}
+                        className="px-6 py-4 whitespace-nowrap text-sm text-gray-500"
+                      >
+                        {row[block.time] || 0}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
