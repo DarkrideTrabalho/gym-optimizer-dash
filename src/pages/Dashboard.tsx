@@ -390,7 +390,22 @@ const Dashboard = () => {
                 />
                 <YAxis />
                 <Tooltip />
-                <Bar dataKey="count" fill="#4f46e5" />
+                <Bar
+                  dataKey="count"
+                  fill={(entry) => {
+                    const colors = {
+                      Yoga: "#FF6B6B",
+                      Pilates: "#4ECDC4",
+                      Funcional: "#45B7D1",
+                      Dança: "#96CEB4",
+                      Musculação: "#FFEEAD",
+                      Crossfit: "#D4A5A5",
+                      Spinning: "#9B59B6",
+                      Zumba: "#FFB347",
+                    };
+                    return colors[entry.name] || "#4f46e5";
+                  }}
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>
