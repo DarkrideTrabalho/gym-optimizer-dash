@@ -51,6 +51,48 @@ export type Database = {
         }
         Relationships: []
       }
+      class_preferences_duplicate: {
+        Row: {
+          created_at: string
+          favorite_class_1: string
+          favorite_class_2: string
+          favorite_class_3: string
+          favorite_class_4: string
+          favorite_class_5: string
+          id: string
+          preferred_days: string[]
+          time_blocks: string[]
+          unavailable_days: string[]
+          unavailable_time_blocks: string[]
+        }
+        Insert: {
+          created_at?: string
+          favorite_class_1: string
+          favorite_class_2: string
+          favorite_class_3: string
+          favorite_class_4: string
+          favorite_class_5: string
+          id?: string
+          preferred_days: string[]
+          time_blocks: string[]
+          unavailable_days: string[]
+          unavailable_time_blocks?: string[]
+        }
+        Update: {
+          created_at?: string
+          favorite_class_1?: string
+          favorite_class_2?: string
+          favorite_class_3?: string
+          favorite_class_4?: string
+          favorite_class_5?: string
+          id?: string
+          preferred_days?: string[]
+          time_blocks?: string[]
+          unavailable_days?: string[]
+          unavailable_time_blocks?: string[]
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
