@@ -218,15 +218,26 @@ const Dashboard = () => {
       });
 
       const processAvailabilityData = (data) => {
+        // Adicione estes logs de debug
+        console.log("Dados brutos:", data);
+        console.log("Exemplo de preferred_days:", data[0]?.preferred_days);
+        console.log("Exemplo de unavailable_days:", data[0]?.unavailable_days);
+        console.log("Exemplo de time_blocks:", data[0]?.time_blocks);
+
         const availability: TimeSlotCount[] = [];
 
         data.forEach((student) => {
+          // Adicione este log para ver os dias disponíveis calculados
           const availableDays = student.preferred_days.filter(
             (day) => !student.unavailable_days.includes(day)
           );
+          console.log("Dias disponíveis para um estudante:", availableDays);
 
           availableDays.forEach((day) => {
             student.time_blocks.forEach((time) => {
+              // Log para cada combinação processada
+              console.log("Processando:", { day, time });
+
               const existingSlot = availability.find(
                 (slot) => slot.day === day && slot.time === time
               );
@@ -240,7 +251,9 @@ const Dashboard = () => {
           });
         });
 
-        // Ordenar por contagem para melhor visualização
+        // Log do resultado final
+        console.log("Availability final:", availability);
+
         return availability.sort((a, b) => b.count - a.count);
       };
 
