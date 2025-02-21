@@ -25,6 +25,84 @@ interface TimeSlotCount {
   count: number;
 }
 
+interface Professor {
+  id: number;
+  name: string;
+  classes: string[];
+  fixedSchedule?: {
+    day: string;
+    time: string;
+  }[];
+}
+
+interface Room {
+  id: number;
+  name: string;
+}
+
+interface ClassSchedule {
+  className: string;
+  day: string;
+  time: string;
+  room: string;
+  professor: string;
+  potentialStudents: number;
+}
+
+const professors: Professor[] = [
+  {
+    id: 1,
+    name: "Professor 1 (Zumba)",
+    classes: ["Zumba"],
+    fixedSchedule: [
+      { day: "Terça", time: "19:00 - 20:00" },
+      { day: "Quinta", time: "18:30 - 19:30" },
+    ],
+  },
+  {
+    id: 2,
+    name: "Professor 2",
+    classes: [
+      "Body Upper",
+      "Core Express",
+      "Fit Step",
+      "Fullbody",
+      "GAP",
+      "Hiit",
+      "Localizada",
+      "Mobistretching",
+      "Treino Livre",
+      "Tabatta",
+      "Vitta Core legs",
+    ],
+  },
+  {
+    id: 3,
+    name: "Professor 3",
+    classes: ["Power Yoga", "Pilates", "Yoga Flow"],
+  },
+];
+
+const rooms: Room[] = [
+  { id: 1, name: "Sala 1" },
+  { id: 2, name: "Sala 2" },
+];
+
+const timeBlocks = [
+  "10:00 - 11:00",
+  "10:30 - 11:30",
+  "16:00 - 17:00",
+  "16:30 - 17:30",
+  "17:00 - 18:00",
+  "17:30 - 18:30",
+  "18:00 - 19:00",
+  "18:30 - 19:30",
+  "19:00 - 20:00",
+  "19:30 - 20:30",
+];
+
+const allDays = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"];
+
 const Dashboard = () => {
   const [favoriteClassesData, setFavoriteClassesData] = useState([]);
   const [firstChoiceData, setFirstChoiceData] = useState([]);
@@ -36,19 +114,9 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
   const [unavailableDaysData, setUnavailableDaysData] = useState([]);
   const [unavailableTimeData, setUnavailableTimeData] = useState([]);
-
-  const allTimeBlocks = [
-    "10:00 - 11:00",
-    "10:30 - 11:30",
-    "16:00 - 17:00",
-    "16:30 - 17:30",
-    "17:00 - 18:00",
-    "17:30 - 18:30",
-    "18:00 - 19:00",
-    "18:30 - 19:30",
-    "19:00 - 20:00",
-    "19:30 - 20:30",
-  ];
+  const [optimizedSchedule, setOptimizedSchedule] = useState<ClassSchedule[]>(
+    []
+  );
 
   useEffect(() => {
     fetchData();
@@ -164,7 +232,7 @@ const Dashboard = () => {
       // Inicializar a matriz com zeros
       allDays.forEach((day) => {
         timeByDay[day] = {};
-        allTimeBlocks.forEach((time) => {
+        timeBlocks.forEach((time) => {
           timeByDay[day][time] = 0;
         });
       });
@@ -187,7 +255,7 @@ const Dashboard = () => {
       // Criar a matriz final
       const matrix = allDays.map((day) => {
         const row = { day };
-        allTimeBlocks.forEach((time) => {
+        timeBlocks.forEach((time) => {
           row[time] = timeByDay[day][time] || 0;
         });
         return row;
@@ -281,7 +349,7 @@ const Dashboard = () => {
       allDays.forEach((day) => {
         unavailableDaysCount[day] = 0;
       });
-      allTimeBlocks.forEach((time) => {
+      timeBlocks.forEach((time) => {
         unavailableTimeCount[time] = 0;
       });
 
@@ -296,7 +364,7 @@ const Dashboard = () => {
         }
         if (Array.isArray(preference.unavailable_time_blocks)) {
           preference.unavailable_time_blocks.forEach((time: string) => {
-            if (allTimeBlocks.includes(time)) {
+            if (timeBlocks.includes(time)) {
               unavailableTimeCount[time] += 1;
             }
           });
@@ -309,7 +377,7 @@ const Dashboard = () => {
         count: unavailableDaysCount[day],
       }));
 
-      const unavailableTimeArray = allTimeBlocks.map((time) => ({
+      const unavailableTimeArray = timeBlocks.map((time) => ({
         time,
         count: unavailableTimeCount[time],
       }));
@@ -329,10 +397,144 @@ const Dashboard = () => {
           (day) => !data[0]?.unavailable_days.includes(day)
         )
       );
+
+      const generatedSchedule = generateOptimizedSchedule(data);
+      setOptimizedSchedule(generatedSchedule);
     } catch (error) {
       console.error("Error fetching data:", error);
       setLoading(false);
     }
+  };
+
+  const generateOptimizedSchedule = (preferenceData) => {
+    const schedule: ClassSchedule[] = [];
+
+    // Primeiro, adicionar as aulas fixas do professor de Zumba
+    professors[0].fixedSchedule?.forEach((fixed) => {
+      schedule.push({
+        className: "Zumba",
+        day: fixed.day,
+        time: fixed.time,
+        room: "Sala 1",
+        professor: professors[0].name,
+        potentialStudents: calculatePotentialStudents(
+          "Zumba",
+          fixed.day,
+          fixed.time,
+          preferenceData
+        ),
+      });
+    });
+
+    // Para cada professor (exceto Zumba que já está fixo)
+    professors.slice(1).forEach((professor) => {
+      professor.classes.forEach((className) => {
+        // Encontrar os melhores horários para cada aula
+        const bestSlots = findBestTimeSlots(
+          className,
+          schedule,
+          preferenceData
+        );
+
+        bestSlots.forEach((slot) => {
+          if (canScheduleClass(slot.day, slot.time, schedule)) {
+            schedule.push({
+              className,
+              day: slot.day,
+              time: slot.time,
+              room: findAvailableRoom(slot.day, slot.time, schedule),
+              professor: professor.name,
+              potentialStudents: slot.potentialStudents,
+            });
+          }
+        });
+      });
+    });
+
+    return schedule;
+  };
+
+  const calculatePotentialStudents = (
+    className: string,
+    day: string,
+    time: string,
+    data
+  ) => {
+    return data.filter((student) => {
+      const isClassPreferred = [
+        student.favorite_class_1,
+        student.favorite_class_2,
+        student.favorite_class_3,
+        student.favorite_class_4,
+        student.favorite_class_5,
+      ].includes(className);
+
+      const isDayAvailable =
+        student.preferred_days.includes(day) &&
+        !student.unavailable_days.includes(day);
+
+      const isTimeAvailable =
+        student.time_blocks.includes(time) &&
+        !student.unavailable_time_blocks?.includes(time);
+
+      return isClassPreferred && isDayAvailable && isTimeAvailable;
+    }).length;
+  };
+
+  const findBestTimeSlots = (
+    className: string,
+    existingSchedule: ClassSchedule[],
+    data
+  ) => {
+    const slots: Array<{
+      day: string;
+      time: string;
+      potentialStudents: number;
+    }> = [];
+
+    allDays.forEach((day) => {
+      timeBlocks.forEach((time) => {
+        if (canScheduleClass(day, time, existingSchedule)) {
+          const potentialStudents = calculatePotentialStudents(
+            className,
+            day,
+            time,
+            data
+          );
+          slots.push({ day, time, potentialStudents });
+        }
+      });
+    });
+
+    return slots
+      .sort((a, b) => b.potentialStudents - a.potentialStudents)
+      .slice(0, 2); // Pegar os 2 melhores horários
+  };
+
+  const canScheduleClass = (
+    day: string,
+    time: string,
+    schedule: ClassSchedule[]
+  ) => {
+    const conflictingClasses = schedule.filter(
+      (s) => s.day === day && s.time === time
+    );
+
+    return conflictingClasses.length < rooms.length;
+  };
+
+  const findAvailableRoom = (
+    day: string,
+    time: string,
+    schedule: ClassSchedule[]
+  ) => {
+    const occupiedRooms = schedule
+      .filter((s) => s.day === day && s.time === time)
+      .map((s) => s.room);
+
+    return (
+      rooms.find((room) => !occupiedRooms.includes(room.name))?.name || "Sala 1"
+    );
   };
 
   if (loading) {
@@ -572,38 +774,19 @@ const Dashboard = () => {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead>
                     <tr>
-                      <th className="px-4 py-2 bg-gray-50">Dia</th>
-                      <th className="px-4 py-2 bg-gray-50">Alunos</th>
-                      <th className="px-4 py-2 bg-gray-50">Porcentagem</th>
+                      <th className="px-4 py-2 bg-gray-50 text-left">Dia</th>
+                      <th className="px-4 py-2 bg-gray-50 text-left">
+                        Quantidade
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {unavailableDaysData.map((dayData) => {
-                      const percentage = stats?.totalStudents
-                        ? ((dayData.count / stats.totalStudents) * 100).toFixed(
-                            1
-                          )
-                        : "0";
-
-                      return (
-                        <tr key={dayData.day} className="hover:bg-gray-50">
-                          <td className="px-4 py-2">{dayData.day}</td>
-                          <td className="px-4 py-2">{dayData.count}</td>
-                          <td className="px-4 py-2">
-                            <div className="flex items-center">
-                              <span className="mr-2">{percentage}%</span>
-                              <div
-                                className="h-2 bg-red-500 rounded"
-                                style={{
-                                  width: `${percentage}%`,
-                                  maxWidth: "100px",
-                                }}
-                              />
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {unavailableDaysData.map((dayData) => (
+                      <tr key={dayData.day} className="hover:bg-gray-50">
+                        <td className="px-4 py-2">{dayData.day}</td>
+                        <td className="px-4 py-2">{dayData.count}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -618,43 +801,71 @@ const Dashboard = () => {
                 <table className="min-w-full divide-y divide-gray-200">
                   <thead>
                     <tr>
-                      <th className="px-4 py-2 bg-gray-50">Horário</th>
-                      <th className="px-4 py-2 bg-gray-50">Alunos</th>
-                      <th className="px-4 py-2 bg-gray-50">Porcentagem</th>
+                      <th className="px-4 py-2 bg-gray-50 text-left">
+                        Horário
+                      </th>
+                      <th className="px-4 py-2 bg-gray-50 text-left">
+                        Quantidade
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
-                    {unavailableTimeData.map((timeData) => {
-                      const percentage = stats?.totalStudents
-                        ? (
-                            (timeData.count / stats.totalStudents) *
-                            100
-                          ).toFixed(1)
-                        : "0";
-
-                      return (
-                        <tr key={timeData.time} className="hover:bg-gray-50">
-                          <td className="px-4 py-2">{timeData.time}</td>
-                          <td className="px-4 py-2">{timeData.count}</td>
-                          <td className="px-4 py-2">
-                            <div className="flex items-center">
-                              <span className="mr-2">{percentage}%</span>
-                              <div
-                                className="h-2 bg-red-500 rounded"
-                                style={{
-                                  width: `${percentage}%`,
-                                  maxWidth: "100px",
-                                }}
-                              />
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
+                    {unavailableTimeData.map((timeData) => (
+                      <tr key={timeData.time} className="hover:bg-gray-50">
+                        <td className="px-4 py-2">{timeData.time}</td>
+                        <td className="px-4 py-2">{timeData.count}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Horário Otimizado */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-xl font-semibold mb-4">Horário Otimizado</h2>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead>
+                <tr>
+                  <th className="px-4 py-2 bg-gray-50">Horário</th>
+                  {allDays.map((day) => (
+                    <th key={day} className="px-4 py-2 bg-gray-50">
+                      {day}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {timeBlocks.map((time) => (
+                  <tr key={time}>
+                    <td className="px-4 py-2 font-medium">{time}</td>
+                    {allDays.map((day) => {
+                      const classes = optimizedSchedule.filter(
+                        (s) => s.day === day && s.time === time
+                      );
+                      return (
+                        <td key={day} className="px-4 py-2 border">
+                          {classes.map((c) => (
+                            <div key={c.className} className="text-sm">
+                              <div className="font-medium">{c.className}</div>
+                              <div className="text-gray-500">
+                                {c.room} - {c.professor}
+                              </div>
+                              <div className="text-gray-400">
+                                {c.potentialStudents} alunos
+                              </div>
+                            </div>
+                          ))}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
