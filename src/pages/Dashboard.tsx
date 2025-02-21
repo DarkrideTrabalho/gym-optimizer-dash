@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -99,30 +100,6 @@ const Dashboard = () => {
         });
       });
 
-      // Calculate most popular/unavailable stats
-      const mostPopularClass = Object.entries(classesCount).sort((a, b) => b[1] - a[1])[0][0];
-      const mostPopularDay = Object.entries(daysCount).sort((a, b) => b[1] - a[1])[0][0];
-      const mostPopularTime = Object.entries(timeBlocks).sort((a, b) => b[1] - a[1])[0][0];
-      const mostUnavailableDay = Object.entries(unavailableDaysCount).sort((a, b) => b[1] - a[1])[0][0];
-
-      // Transform data for charts
-      const favoriteClasses = Object.entries(classesCount).map(([name, count]) => ({
-        name,
-        count,
-      }));
-      const firstChoiceClasses = Object.entries(firstChoiceCount).map(([name, count]) => ({
-        name,
-        count,
-      }));
-      const timeBlocksArray = Object.entries(timeBlocks).map(([time, count]) => ({
-        time,
-        count,
-      }));
-      const preferredDaysArray = Object.entries(daysCount).map(([day, count]) => ({
-        day,
-        count,
-      }));
-
       // Melhorar o processamento da matriz de frequência
       const timeByDay: { [key: string]: { [key: string]: number } } = {};
       const allDays = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
@@ -171,6 +148,30 @@ const Dashboard = () => {
         return row;
       });
 
+      // Calculate most popular/unavailable stats
+      const mostPopularClass = Object.entries(classesCount).sort((a, b) => b[1] - a[1])[0][0];
+      const mostPopularDay = Object.entries(daysCount).sort((a, b) => b[1] - a[1])[0][0];
+      const mostPopularTime = Object.entries(timeBlocks).sort((a, b) => b[1] - a[1])[0][0];
+      const mostUnavailableDay = Object.entries(unavailableDaysCount).sort((a, b) => b[1] - a[1])[0][0];
+
+      // Transform data for charts
+      const favoriteClasses = Object.entries(classesCount).map(([name, count]) => ({
+        name,
+        count,
+      }));
+      const firstChoiceClasses = Object.entries(firstChoiceCount).map(([name, count]) => ({
+        name,
+        count,
+      }));
+      const timeBlocksArray = Object.entries(timeBlocks).map(([time, count]) => ({
+        time,
+        count,
+      }));
+      const preferredDaysArray = Object.entries(daysCount).map(([day, count]) => ({
+        day,
+        count,
+      }));
+
       // Update state
       setFavoriteClassesData(favoriteClasses);
       setFirstChoiceData(firstChoiceClasses);
@@ -188,6 +189,14 @@ const Dashboard = () => {
       });
 
       setLoading(false);
+
+      // Debug logs para verificar os dados
+      console.log("Data from database:", data);
+      console.log("Time by day matrix:", matrix);
+      console.log("Time blocks:", timeBlocks);
+      console.log("Available days calculation example:", data[0]?.preferred_days.filter(
+        day => !data[0]?.unavailable_days.includes(day)
+      ));
     } catch (error) {
       console.error("Error fetching data:", error);
       setLoading(false);
