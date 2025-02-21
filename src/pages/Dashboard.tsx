@@ -34,6 +34,8 @@ const Dashboard = () => {
   const [stats, setStats] = useState<PreferenceStats | null>(null);
   const [availabilityData, setAvailabilityData] = useState<TimeSlotCount[]>([]);
   const [loading, setLoading] = useState(true);
+  const [unavailableDaysData, setUnavailableDaysData] = useState([]);
+  const [unavailableTimeData, setUnavailableTimeData] = useState([]);
 
   const allTimeBlocks = [
     "10:00 - 11:00",
@@ -271,6 +273,50 @@ const Dashboard = () => {
       const availability = processAvailabilityData(data);
       setAvailabilityData(availability);
 
+      // Process unavailable days and times
+      const unavailableDaysCount: { [key: string]: number } = {};
+      const unavailableTimeCount: { [key: string]: number } = {};
+
+      // Inicializar contadores
+      allDays.forEach((day) => {
+        unavailableDaysCount[day] = 0;
+      });
+      allTimeBlocks.forEach((time) => {
+        unavailableTimeCount[time] = 0;
+      });
+
+      // Contar indisponibilidades
+      data.forEach((preference) => {
+        if (Array.isArray(preference.unavailable_days)) {
+          preference.unavailable_days.forEach((day: string) => {
+            if (allDays.includes(day)) {
+              unavailableDaysCount[day] += 1;
+            }
+          });
+        }
+        if (Array.isArray(preference.unavailable_time_blocks)) {
+          preference.unavailable_time_blocks.forEach((time: string) => {
+            if (allTimeBlocks.includes(time)) {
+              unavailableTimeCount[time] += 1;
+            }
+          });
+        }
+      });
+
+      // Transformar em arrays para os gráficos
+      const unavailableDaysArray = allDays.map((day) => ({
+        day,
+        count: unavailableDaysCount[day],
+      }));
+
+      const unavailableTimeArray = allTimeBlocks.map((time) => ({
+        time,
+        count: unavailableTimeCount[time],
+      }));
+
+      setUnavailableDaysData(unavailableDaysArray);
+      setUnavailableTimeData(unavailableTimeArray);
+
       setLoading(false);
 
       // Debug logs para verificar os dados
@@ -491,6 +537,105 @@ const Dashboard = () => {
                         </td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Dias e Horários Indisponíveis */}
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-xl font-semibold mb-4">
+            Dias e Horários Indisponíveis
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Dias Indisponíveis */}
+            <div>
+              <h3 className="text-lg font-medium mb-4">Dias Indisponíveis</h3>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead>
+                    <tr>
+                      <th className="px-4 py-2 bg-gray-50">Dia</th>
+                      <th className="px-4 py-2 bg-gray-50">Alunos</th>
+                      <th className="px-4 py-2 bg-gray-50">Porcentagem</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {unavailableDaysData.map((dayData) => {
+                      const percentage = stats?.totalStudents
+                        ? ((dayData.count / stats.totalStudents) * 100).toFixed(
+                            1
+                          )
+                        : "0";
+
+                      return (
+                        <tr key={dayData.day} className="hover:bg-gray-50">
+                          <td className="px-4 py-2">{dayData.day}</td>
+                          <td className="px-4 py-2">{dayData.count}</td>
+                          <td className="px-4 py-2">
+                            <div className="flex items-center">
+                              <span className="mr-2">{percentage}%</span>
+                              <div
+                                className="h-2 bg-red-500 rounded"
+                                style={{
+                                  width: `${percentage}%`,
+                                  maxWidth: "100px",
+                                }}
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Horários Indisponíveis */}
+            <div>
+              <h3 className="text-lg font-medium mb-4">
+                Horários Indisponíveis
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead>
+                    <tr>
+                      <th className="px-4 py-2 bg-gray-50">Horário</th>
+                      <th className="px-4 py-2 bg-gray-50">Alunos</th>
+                      <th className="px-4 py-2 bg-gray-50">Porcentagem</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {unavailableTimeData.map((timeData) => {
+                      const percentage = stats?.totalStudents
+                        ? (
+                            (timeData.count / stats.totalStudents) *
+                            100
+                          ).toFixed(1)
+                        : "0";
+
+                      return (
+                        <tr key={timeData.time} className="hover:bg-gray-50">
+                          <td className="px-4 py-2">{timeData.time}</td>
+                          <td className="px-4 py-2">{timeData.count}</td>
+                          <td className="px-4 py-2">
+                            <div className="flex items-center">
+                              <span className="mr-2">{percentage}%</span>
+                              <div
+                                className="h-2 bg-red-500 rounded"
+                                style={{
+                                  width: `${percentage}%`,
+                                  maxWidth: "100px",
+                                }}
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
