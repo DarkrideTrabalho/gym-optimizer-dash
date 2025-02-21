@@ -376,60 +376,100 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Nova visualização de disponibilidade */}
+        {/* Dias e Horários Preferidos */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-xl font-semibold mb-4">
-            Horários com Maior Disponibilidade
+            Dias e Horários Preferidos
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead>
-                  <tr>
-                    <th className="px-4 py-2 bg-gray-50">Dia</th>
-                    <th className="px-4 py-2 bg-gray-50">Horário</th>
-                    <th className="px-4 py-2 bg-gray-50">Alunos Disponíveis</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {availabilityData.map((slot, index) => (
-                    <tr
-                      key={`${slot.day}-${slot.time}`}
-                      className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}
-                    >
-                      <td className="px-4 py-2">{slot.day}</td>
-                      <td className="px-4 py-2">{slot.time}</td>
-                      <td className="px-4 py-2">
-                        <div className="flex items-center">
-                          <span className="mr-2">{slot.count}</span>
-                          <div
-                            className="h-2 bg-indigo-500 rounded"
-                            style={{
-                              width: `${
-                                (slot.count / stats?.totalStudents) * 100
-                              }%`,
-                              maxWidth: "200px",
-                            }}
-                          />
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Dias Preferidos */}
             <div>
-              <h3 className="text-lg font-medium mb-2">Resumo</h3>
-              <div className="space-y-2">
-                <p>
-                  <span className="font-medium">Horário mais popular: </span>
-                  {availabilityData[0]?.time} ({availabilityData[0]?.day}) com{" "}
-                  {availabilityData[0]?.count} alunos
-                </p>
-                <p>
-                  <span className="font-medium">Total de slots: </span>
-                  {availabilityData.length} combinações diferentes
-                </p>
+              <h3 className="text-lg font-medium mb-4">Dias Preferidos</h3>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead>
+                    <tr>
+                      <th className="px-4 py-2 bg-gray-50">Dia</th>
+                      <th className="px-4 py-2 bg-gray-50">Alunos</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {preferredDaysData
+                      .filter((item) =>
+                        [
+                          "Segunda",
+                          "Terça",
+                          "Quarta",
+                          "Quinta",
+                          "Sexta",
+                          "Sábado",
+                        ].includes(item.day)
+                      )
+                      .map((dayData, index) => (
+                        <tr
+                          key={dayData.day}
+                          className={
+                            index % 2 === 0 ? "bg-white" : "bg-gray-50"
+                          }
+                        >
+                          <td className="px-4 py-2">{dayData.day}</td>
+                          <td className="px-4 py-2">
+                            <div className="flex items-center">
+                              <span className="mr-2">{dayData.count}</span>
+                              <div
+                                className="h-2 bg-indigo-500 rounded"
+                                style={{
+                                  width: `${
+                                    (dayData.count / stats?.totalStudents) * 100
+                                  }%`,
+                                  maxWidth: "200px",
+                                }}
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Horários Preferidos */}
+            <div>
+              <h3 className="text-lg font-medium mb-4">Horários Preferidos</h3>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead>
+                    <tr>
+                      <th className="px-4 py-2 bg-gray-50">Horário</th>
+                      <th className="px-4 py-2 bg-gray-50">Alunos</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {timeBlocksData.map((timeData, index) => (
+                      <tr
+                        key={timeData.time}
+                        className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}
+                      >
+                        <td className="px-4 py-2">{timeData.time}</td>
+                        <td className="px-4 py-2">
+                          <div className="flex items-center">
+                            <span className="mr-2">{timeData.count}</span>
+                            <div
+                              className="h-2 bg-indigo-500 rounded"
+                              style={{
+                                width: `${
+                                  (timeData.count / stats?.totalStudents) * 100
+                                }%`,
+                                maxWidth: "200px",
+                              }}
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
