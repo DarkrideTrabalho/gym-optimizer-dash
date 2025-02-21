@@ -19,6 +19,12 @@ interface PreferenceStats {
   mostUnavailableTime: string;
 }
 
+interface TimeSlotCount {
+  day: string;
+  time: string;
+  count: number;
+}
+
 const Dashboard = () => {
   const [favoriteClassesData, setFavoriteClassesData] = useState([]);
   const [firstChoiceData, setFirstChoiceData] = useState([]);
@@ -26,7 +32,7 @@ const Dashboard = () => {
   const [classChoicesDistribution, setClassChoicesDistribution] = useState([]);
   const [preferredDaysData, setPreferredDaysData] = useState([]);
   const [stats, setStats] = useState<PreferenceStats | null>(null);
-  const [timeByDayMatrix, setTimeByDayMatrix] = useState<any[]>([]);
+  const [availabilityData, setAvailabilityData] = useState<TimeSlotCount[]>([]);
   const [loading, setLoading] = useState(true);
 
   const allTimeBlocks = [
@@ -134,16 +140,16 @@ const Dashboard = () => {
 
       // Contar as frequências
       data.forEach((preference) => {
-        // Para cada dia preferido que não está na lista de indisponíveis
-        preference.preferred_days.forEach((day) => {
-          if (!preference.unavailable_days.includes(day)) {
-            // Para cada horário disponível do aluno
-            preference.time_blocks.forEach((time) => {
-              if (timeByDay[day] && allTimeBlocks.includes(time)) {
-                timeByDay[day][time] += 1;
-              }
-            });
-          }
+        const availableDays = preference.preferred_days.filter(
+          (day) => !preference.unavailable_days.includes(day)
+        );
+
+        availableDays.forEach((day) => {
+          preference.time_blocks.forEach((time) => {
+            if (timeByDay[day]) {
+              timeByDay[day][time] = (timeByDay[day][time] || 0) + 1;
+            }
+          });
         });
       });
 
@@ -202,7 +208,6 @@ const Dashboard = () => {
       setTimeBlocksData(timeBlocksArray);
       setClassChoicesDistribution(choicesDistribution);
       setPreferredDaysData(preferredDaysArray);
-      setTimeByDayMatrix(matrix);
       setStats({
         totalStudents,
         mostPopularClass,
@@ -212,8 +217,18 @@ const Dashboard = () => {
         mostUnavailableTime: "N/A", // Add logic if needed
       });
 
-      setLoading(false);
+      const processAvailabilityData = (data) => {
+        const availability: TimeSlotCount[] = [];
+        
+        data.forEach((student) => {
+          const availableDays = student.preferred_days.filter(
+            (day) => !student.unavailable_days.includes(day)
+          );
 
+          availableDays.forEach((day) => {
+            student.time_blocks.forEach((time) => {
+              const existingSlot = availability.find(
+                (slot) => slot.day === day && slot.time === time
       // Debug logs para verificar os dados
       console.log("Data from database:", data);
       console.log("Time by day matrix:", matrix);
