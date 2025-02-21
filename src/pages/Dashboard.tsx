@@ -134,16 +134,16 @@ const Dashboard = () => {
 
       // Contar as frequências
       data.forEach((preference) => {
-        const availableDays = preference.preferred_days.filter(
-          (day) => !preference.unavailable_days.includes(day)
-        );
-
-        availableDays.forEach((day) => {
-          preference.time_blocks.forEach((time) => {
-            if (timeByDay[day]) {
-              timeByDay[day][time] = (timeByDay[day][time] || 0) + 1;
-            }
-          });
+        // Para cada dia preferido que não está na lista de indisponíveis
+        preference.preferred_days.forEach((day) => {
+          if (!preference.unavailable_days.includes(day)) {
+            // Para cada horário disponível do aluno
+            preference.time_blocks.forEach((time) => {
+              if (timeByDay[day] && allTimeBlocks.includes(time)) {
+                timeByDay[day][time] += 1;
+              }
+            });
+          }
         });
       });
 
