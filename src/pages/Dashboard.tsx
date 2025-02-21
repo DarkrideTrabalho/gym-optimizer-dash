@@ -101,6 +101,22 @@ const Dashboard = () => {
       // Process preferred days data
       const daysCount: { [key: string]: number } = {};
       const unavailableDaysCount: { [key: string]: number } = {};
+
+      // Inicializar todos os dias com 0
+      [
+        "Segunda",
+        "Terça",
+        "Quarta",
+        "Quinta",
+        "Sexta",
+        "Sábado",
+        "Domingo",
+      ].forEach((day) => {
+        daysCount[day] = 0;
+        unavailableDaysCount[day] = 0;
+      });
+
+      // Contar as preferências
       data.forEach((preference) => {
         preference.preferred_days.forEach((day: string) => {
           daysCount[day] = (daysCount[day] || 0) + 1;
@@ -109,6 +125,14 @@ const Dashboard = () => {
           unavailableDaysCount[day] = (unavailableDaysCount[day] || 0) + 1;
         });
       });
+
+      // Transformar em array para o gráfico
+      const preferredDaysArray = Object.entries(daysCount).map(
+        ([day, count]) => ({
+          day,
+          count,
+        })
+      );
 
       // Process time blocks data
       const timeBlocks: { [key: string]: number } = {};
@@ -195,12 +219,6 @@ const Dashboard = () => {
           count,
         })
       );
-      const preferredDaysArray = Object.entries(daysCount).map(
-        ([day, count]) => ({
-          day,
-          count,
-        })
-      );
 
       // Update state
       setFavoriteClassesData(favoriteClasses);
@@ -218,26 +236,8 @@ const Dashboard = () => {
       });
 
       const processAvailabilityData = (data) => {
-        const allDays = [
-          "Segunda",
-          "Terça",
-          "Quarta",
-          "Quinta",
-          "Sexta",
-          "Sábado",
-          "Domingo",
-        ];
-
-        // Inicializar a estrutura com todos os dias e horários possíveis
         const availability: TimeSlotCount[] = [];
 
-        allDays.forEach((day) => {
-          allTimeBlocks.forEach((time) => {
-            availability.push({ day, time, count: 0 });
-          });
-        });
-
-        // Processar as preferências dos alunos
         data.forEach((student) => {
           const availableDays = student.preferred_days.filter(
             (day) => !student.unavailable_days.includes(day)
@@ -245,20 +245,21 @@ const Dashboard = () => {
 
           availableDays.forEach((day) => {
             student.time_blocks.forEach((time) => {
-              const slot = availability.find(
+              const existingSlot = availability.find(
                 (slot) => slot.day === day && slot.time === time
               );
-              if (slot) {
-                slot.count += 1;
+
+              if (existingSlot) {
+                existingSlot.count += 1;
+              } else {
+                availability.push({ day, time, count: 1 });
               }
             });
           });
         });
 
-        // Filtrar apenas slots com contagem > 0 e ordenar
-        return availability
-          .filter((slot) => slot.count > 0)
-          .sort((a, b) => b.count - a.count);
+        // Ordenar por contagem para melhor visualização
+        return availability.sort((a, b) => b.count - a.count);
       };
 
       // Atualize o estado com os novos dados
