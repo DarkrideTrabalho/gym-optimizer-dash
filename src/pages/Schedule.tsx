@@ -8,6 +8,16 @@ const Schedule = () => {
   const [schedule, setSchedule] = useState(null);
   const [loading, setLoading] = useState(false);
 
+  // Definir as constantes no escopo do componente
+  const days = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"];
+  const timeSlots = [
+    "10:00 - 11:00",
+    "16:00 - 17:00",
+    "17:00 - 18:00",
+    "18:00 - 19:00",
+    "19:00 - 20:00"
+  ];
+
   const generateSchedule = async () => {
     setLoading(true);
     try {
@@ -16,16 +26,6 @@ const Schedule = () => {
         .select("*");
 
       if (preferencesError) throw preferencesError;
-
-      // Aqui vamos criar um exemplo de horário baseado nas preferências
-      const days = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"];
-      const timeSlots = [
-        "10:00 - 11:00",
-        "16:00 - 17:00",
-        "17:00 - 18:00",
-        "18:00 - 19:00",
-        "19:00 - 20:00"
-      ];
 
       // Criar uma estrutura de horário exemplo
       const generatedSchedule = days.map(day => ({
