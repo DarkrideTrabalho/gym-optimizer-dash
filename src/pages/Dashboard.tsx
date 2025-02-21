@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -94,17 +93,9 @@ const Dashboard = () => {
 
       // Process time blocks data
       const timeBlocks: { [key: string]: number } = {};
-      const timeByDay: { [key: string]: { [key: string]: number } } = {};
       data.forEach((preference) => {
         preference.time_blocks.forEach((block: string) => {
           timeBlocks[block] = (timeBlocks[block] || 0) + 1;
-          
-          preference.preferred_days.forEach((day: string) => {
-            if (!timeByDay[day]) {
-              timeByDay[day] = {};
-            }
-            timeByDay[day][block] = (timeByDay[day][block] || 0) + 1;
-          });
         });
       });
 
@@ -132,14 +123,50 @@ const Dashboard = () => {
         count,
       }));
 
-      // Create time by day matrix
-      const allTimeBlocks = Array.from(new Set(data.flatMap(p => p.time_blocks)));
-      const allDays = Array.from(new Set(data.flatMap(p => p.preferred_days)));
-      
+      // Melhorar o processamento da matriz de frequência
+      const timeByDay: { [key: string]: { [key: string]: number } } = {};
+      const allDays = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
+      const allTimeBlocks = [
+        "10:00 - 11:00",
+        "10:30 - 11:30",
+        "16:00 - 17:00",
+        "16:30 - 17:30",
+        "17:00 - 18:00",
+        "17:30 - 18:30",
+        "18:00 - 19:00",
+        "18:30 - 19:30",
+        "19:00 - 20:00",
+        "19:30 - 20:30"
+      ];
+
+      // Inicializar a matriz com zeros
+      allDays.forEach(day => {
+        timeByDay[day] = {};
+        allTimeBlocks.forEach(time => {
+          timeByDay[day][time] = 0;
+        });
+      });
+
+      // Contar as frequências
+      data.forEach(preference => {
+        const availableDays = preference.preferred_days.filter(
+          day => !preference.unavailable_days.includes(day)
+        );
+        
+        availableDays.forEach(day => {
+          preference.time_blocks.forEach(time => {
+            if (timeByDay[day]) {
+              timeByDay[day][time] = (timeByDay[day][time] || 0) + 1;
+            }
+          });
+        });
+      });
+
+      // Criar a matriz final
       const matrix = allDays.map(day => {
         const row = { day };
         allTimeBlocks.forEach(time => {
-          row[time] = timeByDay[day]?.[time] || 0;
+          row[time] = timeByDay[day][time] || 0;
         });
         return row;
       });
