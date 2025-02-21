@@ -219,7 +219,7 @@ const Dashboard = () => {
 
       const processAvailabilityData = (data) => {
         const availability: TimeSlotCount[] = [];
-        
+
         data.forEach((student) => {
           const availableDays = student.preferred_days.filter(
             (day) => !student.unavailable_days.includes(day)
@@ -229,6 +229,27 @@ const Dashboard = () => {
             student.time_blocks.forEach((time) => {
               const existingSlot = availability.find(
                 (slot) => slot.day === day && slot.time === time
+              );
+
+              if (existingSlot) {
+                existingSlot.count += 1;
+              } else {
+                availability.push({ day, time, count: 1 });
+              }
+            });
+          });
+        });
+
+        // Ordenar por contagem para melhor visualização
+        return availability.sort((a, b) => b.count - a.count);
+      };
+
+      // Atualize o estado com os novos dados
+      const availability = processAvailabilityData(data);
+      setAvailabilityData(availability);
+
+      setLoading(false);
+
       // Debug logs para verificar os dados
       console.log("Data from database:", data);
       console.log("Time by day matrix:", matrix);
@@ -355,46 +376,62 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Matriz de Frequência */}
+        {/* Nova visualização de disponibilidade */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-xl font-semibold mb-4">
-            Matriz de Frequência: Horários por Dia
+            Horários com Maior Disponibilidade
           </h2>
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead>
-                <tr>
-                  <th className="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Dia
-                  </th>
-                  {allTimeBlocks.map((time) => (
-                    <th
-                      key={time}
-                      className="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
-                      {time}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {timeByDayMatrix.map((row) => (
-                  <tr key={row.day}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {row.day}
-                    </td>
-                    {allTimeBlocks.map((time) => (
-                      <td
-                        key={time}
-                        className="px-6 py-4 whitespace-nowrap text-sm text-gray-500"
-                      >
-                        {row[time]}
-                      </td>
-                    ))}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead>
+                  <tr>
+                    <th className="px-4 py-2 bg-gray-50">Dia</th>
+                    <th className="px-4 py-2 bg-gray-50">Horário</th>
+                    <th className="px-4 py-2 bg-gray-50">Alunos Disponíveis</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {availabilityData.map((slot, index) => (
+                    <tr
+                      key={`${slot.day}-${slot.time}`}
+                      className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}
+                    >
+                      <td className="px-4 py-2">{slot.day}</td>
+                      <td className="px-4 py-2">{slot.time}</td>
+                      <td className="px-4 py-2">
+                        <div className="flex items-center">
+                          <span className="mr-2">{slot.count}</span>
+                          <div
+                            className="h-2 bg-indigo-500 rounded"
+                            style={{
+                              width: `${
+                                (slot.count / stats?.totalStudents) * 100
+                              }%`,
+                              maxWidth: "200px",
+                            }}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div>
+              <h3 className="text-lg font-medium mb-2">Resumo</h3>
+              <div className="space-y-2">
+                <p>
+                  <span className="font-medium">Horário mais popular: </span>
+                  {availabilityData[0]?.time} ({availabilityData[0]?.day}) com{" "}
+                  {availabilityData[0]?.count} alunos
+                </p>
+                <p>
+                  <span className="font-medium">Total de slots: </span>
+                  {availabilityData.length} combinações diferentes
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </div>
