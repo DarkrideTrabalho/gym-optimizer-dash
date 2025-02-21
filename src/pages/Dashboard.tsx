@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -29,6 +28,19 @@ const Dashboard = () => {
   const [stats, setStats] = useState<PreferenceStats | null>(null);
   const [timeByDayMatrix, setTimeByDayMatrix] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const allTimeBlocks = [
+    "10:00 - 11:00",
+    "10:30 - 11:30",
+    "16:00 - 17:00",
+    "16:30 - 17:30",
+    "17:00 - 18:00",
+    "17:30 - 18:30",
+    "18:00 - 19:00",
+    "18:30 - 19:30",
+    "19:00 - 20:00",
+    "19:30 - 20:30",
+  ];
 
   useEffect(() => {
     fetchData();
@@ -102,36 +114,32 @@ const Dashboard = () => {
 
       // Melhorar o processamento da matriz de frequência
       const timeByDay: { [key: string]: { [key: string]: number } } = {};
-      const allDays = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"];
-      const allTimeBlocks = [
-        "10:00 - 11:00",
-        "10:30 - 11:30",
-        "16:00 - 17:00",
-        "16:30 - 17:30",
-        "17:00 - 18:00",
-        "17:30 - 18:30",
-        "18:00 - 19:00",
-        "18:30 - 19:30",
-        "19:00 - 20:00",
-        "19:30 - 20:30"
+      const allDays = [
+        "Segunda",
+        "Terça",
+        "Quarta",
+        "Quinta",
+        "Sexta",
+        "Sábado",
+        "Domingo",
       ];
 
       // Inicializar a matriz com zeros
-      allDays.forEach(day => {
+      allDays.forEach((day) => {
         timeByDay[day] = {};
-        allTimeBlocks.forEach(time => {
+        allTimeBlocks.forEach((time) => {
           timeByDay[day][time] = 0;
         });
       });
 
       // Contar as frequências
-      data.forEach(preference => {
+      data.forEach((preference) => {
         const availableDays = preference.preferred_days.filter(
-          day => !preference.unavailable_days.includes(day)
+          (day) => !preference.unavailable_days.includes(day)
         );
-        
-        availableDays.forEach(day => {
-          preference.time_blocks.forEach(time => {
+
+        availableDays.forEach((day) => {
+          preference.time_blocks.forEach((time) => {
             if (timeByDay[day]) {
               timeByDay[day][time] = (timeByDay[day][time] || 0) + 1;
             }
@@ -140,37 +148,53 @@ const Dashboard = () => {
       });
 
       // Criar a matriz final
-      const matrix = allDays.map(day => {
+      const matrix = allDays.map((day) => {
         const row = { day };
-        allTimeBlocks.forEach(time => {
+        allTimeBlocks.forEach((time) => {
           row[time] = timeByDay[day][time] || 0;
         });
         return row;
       });
 
       // Calculate most popular/unavailable stats
-      const mostPopularClass = Object.entries(classesCount).sort((a, b) => b[1] - a[1])[0][0];
-      const mostPopularDay = Object.entries(daysCount).sort((a, b) => b[1] - a[1])[0][0];
-      const mostPopularTime = Object.entries(timeBlocks).sort((a, b) => b[1] - a[1])[0][0];
-      const mostUnavailableDay = Object.entries(unavailableDaysCount).sort((a, b) => b[1] - a[1])[0][0];
+      const mostPopularClass = Object.entries(classesCount).sort(
+        (a, b) => b[1] - a[1]
+      )[0][0];
+      const mostPopularDay = Object.entries(daysCount).sort(
+        (a, b) => b[1] - a[1]
+      )[0][0];
+      const mostPopularTime = Object.entries(timeBlocks).sort(
+        (a, b) => b[1] - a[1]
+      )[0][0];
+      const mostUnavailableDay = Object.entries(unavailableDaysCount).sort(
+        (a, b) => b[1] - a[1]
+      )[0][0];
 
       // Transform data for charts
-      const favoriteClasses = Object.entries(classesCount).map(([name, count]) => ({
-        name,
-        count,
-      }));
-      const firstChoiceClasses = Object.entries(firstChoiceCount).map(([name, count]) => ({
-        name,
-        count,
-      }));
-      const timeBlocksArray = Object.entries(timeBlocks).map(([time, count]) => ({
-        time,
-        count,
-      }));
-      const preferredDaysArray = Object.entries(daysCount).map(([day, count]) => ({
-        day,
-        count,
-      }));
+      const favoriteClasses = Object.entries(classesCount).map(
+        ([name, count]) => ({
+          name,
+          count,
+        })
+      );
+      const firstChoiceClasses = Object.entries(firstChoiceCount).map(
+        ([name, count]) => ({
+          name,
+          count,
+        })
+      );
+      const timeBlocksArray = Object.entries(timeBlocks).map(
+        ([time, count]) => ({
+          time,
+          count,
+        })
+      );
+      const preferredDaysArray = Object.entries(daysCount).map(
+        ([day, count]) => ({
+          day,
+          count,
+        })
+      );
 
       // Update state
       setFavoriteClassesData(favoriteClasses);
@@ -194,9 +218,12 @@ const Dashboard = () => {
       console.log("Data from database:", data);
       console.log("Time by day matrix:", matrix);
       console.log("Time blocks:", timeBlocks);
-      console.log("Available days calculation example:", data[0]?.preferred_days.filter(
-        day => !data[0]?.unavailable_days.includes(day)
-      ));
+      console.log(
+        "Available days calculation example:",
+        data[0]?.preferred_days.filter(
+          (day) => !data[0]?.unavailable_days.includes(day)
+        )
+      );
     } catch (error) {
       console.error("Error fetching data:", error);
       setLoading(false);
@@ -243,12 +270,19 @@ const Dashboard = () => {
 
         {/* Gráfico de Primeira Escolha */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Aulas de Primeira Escolha</h2>
+          <h2 className="text-xl font-semibold mb-4">
+            Aulas de Primeira Escolha
+          </h2>
           <div className="h-[400px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={firstChoiceData}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" angle={-45} textAnchor="end" height={100} />
+                <XAxis
+                  dataKey="name"
+                  angle={-45}
+                  textAnchor="end"
+                  height={100}
+                />
                 <YAxis />
                 <Tooltip />
                 <Bar dataKey="count" fill="#4f46e5" />
@@ -259,7 +293,9 @@ const Dashboard = () => {
 
         {/* Distribuição de Escolhas */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Distribuição de Escolhas</h2>
+          <h2 className="text-xl font-semibold mb-4">
+            Distribuição de Escolhas
+          </h2>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead>
@@ -306,7 +342,9 @@ const Dashboard = () => {
 
         {/* Matriz de Frequência */}
         <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="text-xl font-semibold mb-4">Matriz de Frequência: Horários por Dia</h2>
+          <h2 className="text-xl font-semibold mb-4">
+            Matriz de Frequência: Horários por Dia
+          </h2>
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead>
@@ -314,12 +352,12 @@ const Dashboard = () => {
                   <th className="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Dia
                   </th>
-                  {timeBlocksData.map((block) => (
+                  {allTimeBlocks.map((time) => (
                     <th
-                      key={block.time}
+                      key={time}
                       className="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                     >
-                      {block.time}
+                      {time}
                     </th>
                   ))}
                 </tr>
@@ -330,12 +368,12 @@ const Dashboard = () => {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                       {row.day}
                     </td>
-                    {timeBlocksData.map((block) => (
+                    {allTimeBlocks.map((time) => (
                       <td
-                        key={block.time}
+                        key={time}
                         className="px-6 py-4 whitespace-nowrap text-sm text-gray-500"
                       >
-                        {row[block.time] || 0}
+                        {row[time]}
                       </td>
                     ))}
                   </tr>
