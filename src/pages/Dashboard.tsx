@@ -100,10 +100,7 @@ const Dashboard = () => {
 
       // Process preferred days data
       const daysCount: { [key: string]: number } = {};
-      const unavailableDaysCount: { [key: string]: number } = {};
-
-      // Inicializar todos os dias com 0
-      [
+      const allDays = [
         "Segunda",
         "Terça",
         "Quarta",
@@ -111,28 +108,36 @@ const Dashboard = () => {
         "Sexta",
         "Sábado",
         "Domingo",
-      ].forEach((day) => {
+      ];
+
+      // Inicializar todos os dias com 0
+      allDays.forEach((day) => {
         daysCount[day] = 0;
-        unavailableDaysCount[day] = 0;
       });
 
-      // Contar as preferências
+      // Contar as preferências corretamente a partir do array preferred_days
       data.forEach((preference) => {
-        preference.preferred_days.forEach((day: string) => {
-          daysCount[day] = (daysCount[day] || 0) + 1;
-        });
-        preference.unavailable_days.forEach((day: string) => {
-          unavailableDaysCount[day] = (unavailableDaysCount[day] || 0) + 1;
-        });
+        // Verifica se preferred_days existe e é um array
+        if (Array.isArray(preference.preferred_days)) {
+          preference.preferred_days.forEach((day: string) => {
+            if (allDays.includes(day)) {
+              daysCount[day] += 1;
+            }
+          });
+        }
       });
+
+      // Debug log para verificar as contagens
+      console.log("Contagem de dias preferidos:", daysCount);
 
       // Transformar em array para o gráfico
-      const preferredDaysArray = Object.entries(daysCount).map(
-        ([day, count]) => ({
-          day,
-          count,
-        })
-      );
+      const preferredDaysArray = allDays.map((day) => ({
+        day,
+        count: daysCount[day],
+      }));
+
+      // Debug log para verificar o array final
+      console.log("Array de dias preferidos:", preferredDaysArray);
 
       // Process time blocks data
       const timeBlocks: { [key: string]: number } = {};
@@ -196,7 +201,7 @@ const Dashboard = () => {
       const mostPopularTime = Object.entries(timeBlocks).sort(
         (a, b) => b[1] - a[1]
       )[0][0];
-      const mostUnavailableDay = Object.entries(unavailableDaysCount).sort(
+      const mostUnavailableDay = Object.entries(daysCount).sort(
         (a, b) => b[1] - a[1]
       )[0][0];
 
