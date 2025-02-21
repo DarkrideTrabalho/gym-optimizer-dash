@@ -218,43 +218,47 @@ const Dashboard = () => {
       });
 
       const processAvailabilityData = (data) => {
-        // Adicione estes logs de debug
-        console.log("Dados brutos:", data);
-        console.log("Exemplo de preferred_days:", data[0]?.preferred_days);
-        console.log("Exemplo de unavailable_days:", data[0]?.unavailable_days);
-        console.log("Exemplo de time_blocks:", data[0]?.time_blocks);
+        const allDays = [
+          "Segunda",
+          "Terça",
+          "Quarta",
+          "Quinta",
+          "Sexta",
+          "Sábado",
+          "Domingo",
+        ];
 
+        // Inicializar a estrutura com todos os dias e horários possíveis
         const availability: TimeSlotCount[] = [];
 
+        allDays.forEach((day) => {
+          allTimeBlocks.forEach((time) => {
+            availability.push({ day, time, count: 0 });
+          });
+        });
+
+        // Processar as preferências dos alunos
         data.forEach((student) => {
-          // Adicione este log para ver os dias disponíveis calculados
           const availableDays = student.preferred_days.filter(
             (day) => !student.unavailable_days.includes(day)
           );
-          console.log("Dias disponíveis para um estudante:", availableDays);
 
           availableDays.forEach((day) => {
             student.time_blocks.forEach((time) => {
-              // Log para cada combinação processada
-              console.log("Processando:", { day, time });
-
-              const existingSlot = availability.find(
+              const slot = availability.find(
                 (slot) => slot.day === day && slot.time === time
               );
-
-              if (existingSlot) {
-                existingSlot.count += 1;
-              } else {
-                availability.push({ day, time, count: 1 });
+              if (slot) {
+                slot.count += 1;
               }
             });
           });
         });
 
-        // Log do resultado final
-        console.log("Availability final:", availability);
-
-        return availability.sort((a, b) => b.count - a.count);
+        // Filtrar apenas slots com contagem > 0 e ordenar
+        return availability
+          .filter((slot) => slot.count > 0)
+          .sort((a, b) => b.count - a.count);
       };
 
       // Atualize o estado com os novos dados
