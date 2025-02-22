@@ -15,7 +15,7 @@ const Schedule = () => {
     "16:00 - 17:00",
     "17:00 - 18:00",
     "18:00 - 19:00",
-    "19:00 - 20:00"
+    "19:00 - 20:00",
   ];
 
   const generateSchedule = async () => {
@@ -27,14 +27,61 @@ const Schedule = () => {
 
       if (preferencesError) throw preferencesError;
 
-      // Criar uma estrutura de horário exemplo
+      // Processamento das preferências para criar horário
+      const availability = {};
+      days.forEach(day => {
+        availability[day] = {};
+        timeSlots.forEach(time => {
+          availability[day][time] = {
+            studentCount: 0,
+            preferredClasses: {}
+          };
+        });
+      });
+
+      // Calcular disponibilidade
+      preferences.forEach(preference => {
+        const availableDays = preference.preferred_days.filter(
+          day => !preference.unavailable_days.includes(day)
+        );
+
+        availableDays.forEach(day => {
+          if (days.includes(day)) {
+            preference.time_blocks.forEach(time => {
+              if (timeSlots.includes(time)) {
+                availability[day][time].studentCount++;
+                [
+                  preference.favorite_class_1,
+                  preference.favorite_class_2,
+                  preference.favorite_class_3,
+                  preference.favorite_class_4,
+                  preference.favorite_class_5
+                ].forEach(className => {
+                  if (className) {
+                    availability[day][time].preferredClasses[className] = 
+                      (availability[day][time].preferredClasses[className] || 0) + 1;
+                  }
+                });
+              }
+            });
+          }
+        });
+      });
+
+      // Criar horário com base nas preferências
       const generatedSchedule = days.map(day => ({
         day,
-        slots: timeSlots.map(time => ({
-          time,
-          class: "A ser definido",
-          students: 0
-        }))
+        slots: timeSlots.map(time => {
+          const slot = availability[day][time];
+          const mostPreferredClass = Object.entries(slot.preferredClasses)
+            .sort((a, b) => b[1] - a[1])[0];
+          
+          return {
+            time,
+            class: mostPreferredClass ? mostPreferredClass[0] : "A ser definido",
+            students: slot.studentCount
+          };
+        })
       }));
 
       setSchedule(generatedSchedule);
@@ -53,10 +100,7 @@ const Schedule = () => {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold">Geração de Horário</h2>
-            <Button
-              onClick={generateSchedule}
-              disabled={loading}
-            >
+            <Button onClick={generateSchedule} disabled={loading}>
               {loading ? "Gerando..." : "Gerar Horário"}
             </Button>
           </div>
@@ -85,15 +129,24 @@ const Schedule = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         {time}
                       </td>
-                      {days.map(day => (
-                        <td
-                          key={`${day}-${time}`}
-                          className="px-6 py-4 whitespace-nowrap text-sm text-gray-500"
-                        >
-                          {schedule.find(s => s.day === day)
-                            ?.slots.find(s => s.time === time)?.class}
-                        </td>
-                      ))}
+                      {days.map(day => {
+                        const slot = schedule
+                          .find(s => s.day === day)
+                          ?.slots.find(s => s.time === time);
+                        return (
+                          <td
+                            key={`${day}-${time}`}
+                            className="px-6 py-4 whitespace-nowrap text-sm text-gray-500"
+                          >
+                            <div>
+                              <div className="font-medium">{slot?.class}</div>
+                              <div className="text-xs text-gray-400">
+                                {slot?.students} alunos disponíveis
+                              </div>
+                            </div>
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))}
                 </tbody>
