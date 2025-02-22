@@ -1,6 +1,6 @@
-
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import {
   BarChart,
   Bar,
@@ -83,7 +83,7 @@ const Dashboard = () => {
           choice: i,
           distribution: choiceCount,
         });
-      });
+      }
 
       // Process preferred days data
       const daysCount: { [key: string]: number } = {};
