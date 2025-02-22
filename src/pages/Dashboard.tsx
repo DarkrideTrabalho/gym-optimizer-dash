@@ -9,6 +9,7 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
+  Cell,
 } from "recharts";
 
 interface PreferenceStats {
@@ -34,6 +35,20 @@ const Dashboard = () => {
   const [stats, setStats] = useState<PreferenceStats | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const disciplineColors = {
+    "Ginástica Localizada": "#8B5CF6",
+    "Pilates": "#D946EF",
+    "Alongamento": "#F97316",
+    "Funcional": "#0EA5E9",
+    "Dança": "#1EAEDB",
+    "Yoga": "#33C3F0",
+    "Crossfit": "#0FA0CE",
+  };
+
+  const getDisciplineColor = (discipline: string) => {
+    return disciplineColors[discipline] || "#9F9EA1";
+  };
+
   useEffect(() => {
     fetchData();
   }, []);
@@ -48,7 +63,6 @@ const Dashboard = () => {
 
       const totalStudents = data.length;
 
-      // Process top choices for each position (1st to 5th choice)
       const choiceCounts = Array.from({ length: 5 }, (_, i) => {
         const counts: { [key: string]: number } = {};
         data.forEach((preference) => {
@@ -186,7 +200,6 @@ const Dashboard = () => {
       setClassChoicesDistribution(choicesDistribution);
       setPreferredDaysData(preferredDaysArray);
       
-      // Update stats with top choices
       const topChoices = choiceCounts.reduce((acc, choice) => {
         acc[choice.choice] = {
           name: choice.name,
@@ -232,7 +245,6 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 space-y-8">
-        {/* Resumo Geral */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-2xl font-bold mb-4">Resumo Geral</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -277,12 +289,42 @@ const Dashboard = () => {
                   angle={-45}
                   textAnchor="end"
                   height={100}
+                  interval={0}
+                  tick={{
+                    fill: "#403E43",
+                    fontSize: 12
+                  }}
                 />
                 <YAxis />
-                <Tooltip />
-                <Bar dataKey="count" fill="#4f46e5" />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: "#fff",
+                    border: "1px solid #e2e8f0",
+                    borderRadius: "6px",
+                  }}
+                  cursor={{ fill: "rgba(0, 0, 0, 0.1)" }}
+                />
+                <Bar dataKey="count">
+                  {firstChoiceData.map((entry, index) => (
+                    <Cell 
+                      key={`cell-${index}`}
+                      fill={getDisciplineColor(entry.name)}
+                    />
+                  ))}
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
+          </div>
+          <div className="mt-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {firstChoiceData.map((discipline, index) => (
+              <div key={index} className="flex items-center">
+                <div
+                  className="w-4 h-4 rounded mr-2"
+                  style={{ backgroundColor: getDisciplineColor(discipline.name) }}
+                />
+                <span className="text-sm text-gray-600">{discipline.name}</span>
+              </div>
+            ))}
           </div>
         </div>
 
