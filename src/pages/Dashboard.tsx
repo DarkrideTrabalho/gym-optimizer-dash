@@ -24,6 +24,8 @@ const Dashboard = () => {
   const [favoriteClassesData, setFavoriteClassesData] = useState([]);
   const [firstChoiceData, setFirstChoiceData] = useState([]);
   const [timeBlocksData, setTimeBlocksData] = useState([]);
+  const [unavailableTimeData, setUnavailableTimeData] = useState([]);
+  const [unavailableDaysData, setUnavailableDaysData] = useState([]);
   const [classChoicesDistribution, setClassChoicesDistribution] = useState([]);
   const [preferredDaysData, setPreferredDaysData] = useState([]);
   const [stats, setStats] = useState<PreferenceStats | null>(null);
@@ -41,10 +43,8 @@ const Dashboard = () => {
 
       if (error) throw error;
 
-      // Process data for overall stats
       const totalStudents = data.length;
 
-      // Process data for favorite classes (all choices)
       const classesCount: { [key: string]: number } = {};
       data.forEach((preference) => {
         [
@@ -60,7 +60,6 @@ const Dashboard = () => {
         });
       });
 
-      // Process first choice data
       const firstChoiceCount: { [key: string]: number } = {};
       data.forEach((preference) => {
         const className = preference.favorite_class_1;
@@ -69,7 +68,6 @@ const Dashboard = () => {
         }
       });
 
-      // Process class choices distribution
       const choicesDistribution = [];
       for (let i = 1; i <= 5; i++) {
         const choiceCount: { [key: string]: number } = {};
@@ -85,7 +83,6 @@ const Dashboard = () => {
         });
       }
 
-      // Process preferred days data
       const daysCount: { [key: string]: number } = {};
       data.forEach((preference) => {
         if (Array.isArray(preference.preferred_days)) {
@@ -95,7 +92,6 @@ const Dashboard = () => {
         }
       });
 
-      // Process time blocks data
       const timeBlocks: { [key: string]: number } = {};
       data.forEach((preference) => {
         if (Array.isArray(preference.time_blocks)) {
@@ -105,23 +101,22 @@ const Dashboard = () => {
         }
       });
 
-      // Process unavailable days
       const unavailableDaysCount: { [key: string]: number } = {};
+      const unavailableTimeCount: { [key: string]: number } = {};
+      
       data.forEach((preference) => {
         if (Array.isArray(preference.unavailable_days)) {
           preference.unavailable_days.forEach((day: string) => {
             unavailableDaysCount[day] = (unavailableDaysCount[day] || 0) + 1;
           });
         }
+        if (Array.isArray(preference.unavailable_time_blocks)) {
+          preference.unavailable_time_blocks.forEach((time: string) => {
+            unavailableTimeCount[time] = (unavailableTimeCount[time] || 0) + 1;
+          });
+        }
       });
 
-      // Calculate most popular/unavailable stats
-      const mostPopularClass = Object.entries(classesCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "N/A";
-      const mostPopularDay = Object.entries(daysCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "N/A";
-      const mostPopularTime = Object.entries(timeBlocks).sort((a, b) => b[1] - a[1])[0]?.[0] || "N/A";
-      const mostUnavailableDay = Object.entries(unavailableDaysCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "N/A";
-
-      // Transform data for charts
       const favoriteClasses = Object.entries(classesCount)
         .map(([name, count]) => ({
           name,
@@ -150,7 +145,20 @@ const Dashboard = () => {
         }))
         .sort((a, b) => b.count - a.count);
 
-      // Update state
+      const unavailableDays = Object.entries(unavailableDaysCount)
+        .map(([day, count]) => ({
+          day,
+          count,
+        }))
+        .sort((a, b) => b.count - a.count);
+
+      const unavailableTimes = Object.entries(unavailableTimeCount)
+        .map(([time, count]) => ({
+          time,
+          count,
+        }))
+        .sort((a, b) => b.count - a.count);
+
       setFavoriteClassesData(favoriteClasses);
       setFirstChoiceData(firstChoiceClasses);
       setTimeBlocksData(timeBlocksArray);
@@ -158,14 +166,16 @@ const Dashboard = () => {
       setPreferredDaysData(preferredDaysArray);
       setStats({
         totalStudents,
-        mostPopularClass,
-        mostPopularDay,
-        mostPopularTime,
-        mostUnavailableDay,
+        mostPopularClass: Object.entries(classesCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "N/A",
+        mostPopularDay: Object.entries(daysCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "N/A",
+        mostPopularTime: Object.entries(timeBlocks).sort((a, b) => b[1] - a[1])[0]?.[0] || "N/A",
+        mostUnavailableDay: Object.entries(unavailableDaysCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "N/A",
         mostUnavailableTime: "N/A",
       });
 
-      // Debug logs
+      setUnavailableDaysData(unavailableDays);
+      setUnavailableTimeData(unavailableTimes);
+
       console.log("Data from database:", data);
       console.log("Time blocks:", timeBlocks);
       console.log("Preferred days:", daysCount);
@@ -190,7 +200,6 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 space-y-8">
-        {/* Resumo Geral */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-2xl font-bold mb-4">Resumo Geral</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -217,7 +226,6 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Gráfico de Primeira Escolha */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-xl font-semibold mb-4">
             Aulas de Primeira Escolha
@@ -240,7 +248,6 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Distribuição de Escolhas */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-xl font-semibold mb-4">
             Distribuição de Escolhas
@@ -289,13 +296,11 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Dias e Horários Preferidos */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-xl font-semibold mb-4">
             Dias e Horários Preferidos
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            {/* Dias Preferidos */}
             <div>
               <h3 className="text-lg font-medium mb-4">Dias Preferidos</h3>
               <div className="overflow-x-auto">
@@ -334,7 +339,6 @@ const Dashboard = () => {
               </div>
             </div>
 
-            {/* Horários Preferidos */}
             <div>
               <h3 className="text-lg font-medium mb-4">Horários Preferidos</h3>
               <div className="overflow-x-auto">
@@ -357,6 +361,89 @@ const Dashboard = () => {
                             <span className="mr-2">{timeData.count}</span>
                             <div
                               className="h-2 bg-indigo-500 rounded"
+                              style={{
+                                width: `${
+                                  (timeData.count / stats?.totalStudents) * 100
+                                }%`,
+                                maxWidth: "200px",
+                              }}
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-lg shadow p-6">
+          <h2 className="text-xl font-semibold mb-4">
+            Dias e Horários Indisponíveis
+          </h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div>
+              <h3 className="text-lg font-medium mb-4">Dias Indisponíveis</h3>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead>
+                    <tr>
+                      <th className="px-4 py-2 bg-gray-50">Dia</th>
+                      <th className="px-4 py-2 bg-gray-50">Alunos</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {unavailableDaysData.map((dayData, index) => (
+                      <tr
+                        key={dayData.day}
+                        className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}
+                      >
+                        <td className="px-4 py-2">{dayData.day}</td>
+                        <td className="px-4 py-2">
+                          <div className="flex items-center">
+                            <span className="mr-2">{dayData.count}</span>
+                            <div
+                              className="h-2 bg-red-500 rounded"
+                              style={{
+                                width: `${
+                                  (dayData.count / stats?.totalStudents) * 100
+                                }%`,
+                                maxWidth: "200px",
+                              }}
+                            />
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-lg font-medium mb-4">Horários Indisponíveis</h3>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead>
+                    <tr>
+                      <th className="px-4 py-2 bg-gray-50">Horário</th>
+                      <th className="px-4 py-2 bg-gray-50">Alunos</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {unavailableTimeData.map((timeData, index) => (
+                      <tr
+                        key={timeData.time}
+                        className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}
+                      >
+                        <td className="px-4 py-2">{timeData.time}</td>
+                        <td className="px-4 py-2">
+                          <div className="flex items-center">
+                            <span className="mr-2">{timeData.count}</span>
+                            <div
+                              className="h-2 bg-red-500 rounded"
                               style={{
                                 width: `${
                                   (timeData.count / stats?.totalStudents) * 100
