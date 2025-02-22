@@ -1,3 +1,4 @@
+
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -36,13 +37,21 @@ const Dashboard = () => {
   const [loading, setLoading] = useState(true);
 
   const disciplineColors = {
-    "Ginástica Localizada": "#8B5CF6",
     "Pilates": "#D946EF",
-    "Alongamento": "#F97316",
-    "Funcional": "#0EA5E9",
-    "Dança": "#1EAEDB",
-    "Yoga": "#33C3F0",
-    "Crossfit": "#0FA0CE",
+    "Yoga Flow": "#8B5CF6",
+    "Zumba": "#F97316",
+    "Localizada": "#0EA5E9",
+    "Fit Step": "#1EAEDB",
+    "GAP": "#33C3F0",
+    "Core Express": "#0FA0CE",
+    "Power Yoga": "#6366F1",
+    "Treino Livre": "#EC4899",
+    "Fullbody": "#14B8A6",
+    "Mobistretching": "#A855F7",
+    "Hiit": "#F43F5E",
+    "Body Upper": "#10B981",
+    "Tabatta": "#F59E0B",
+    "Vitta Core legs": "#84CC16"
   };
 
   const getDisciplineColor = (discipline: string) => {
