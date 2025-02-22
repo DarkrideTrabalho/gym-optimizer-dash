@@ -18,6 +18,9 @@ interface PreferenceStats {
   mostPopularTime: string;
   mostUnavailableDay: string;
   mostUnavailableTime: string;
+  topChoices: {
+    [key: number]: { name: string; count: number };
+  };
 }
 
 const Dashboard = () => {
@@ -44,6 +47,24 @@ const Dashboard = () => {
       if (error) throw error;
 
       const totalStudents = data.length;
+
+      // Process top choices for each position (1st to 5th choice)
+      const choiceCounts = Array.from({ length: 5 }, (_, i) => {
+        const counts: { [key: string]: number } = {};
+        data.forEach((preference) => {
+          const className = preference[`favorite_class_${i + 1}`];
+          if (className) {
+            counts[className] = (counts[className] || 0) + 1;
+          }
+        });
+        const topChoice = Object.entries(counts)
+          .sort((a, b) => b[1] - a[1])[0] || ["N/A", 0];
+        return {
+          choice: i + 1,
+          name: topChoice[0],
+          count: topChoice[1]
+        };
+      });
 
       const classesCount: { [key: string]: number } = {};
       data.forEach((preference) => {
@@ -164,6 +185,16 @@ const Dashboard = () => {
       setTimeBlocksData(timeBlocksArray);
       setClassChoicesDistribution(choicesDistribution);
       setPreferredDaysData(preferredDaysArray);
+      
+      // Update stats with top choices
+      const topChoices = choiceCounts.reduce((acc, choice) => {
+        acc[choice.choice] = {
+          name: choice.name,
+          count: choice.count
+        };
+        return acc;
+      }, {});
+
       setStats({
         totalStudents,
         mostPopularClass: Object.entries(classesCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "N/A",
@@ -171,6 +202,7 @@ const Dashboard = () => {
         mostPopularTime: Object.entries(timeBlocks).sort((a, b) => b[1] - a[1])[0]?.[0] || "N/A",
         mostUnavailableDay: Object.entries(unavailableDaysCount).sort((a, b) => b[1] - a[1])[0]?.[0] || "N/A",
         mostUnavailableTime: "N/A",
+        topChoices
       });
 
       setUnavailableDaysData(unavailableDays);
@@ -200,6 +232,7 @@ const Dashboard = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8 space-y-8">
+        {/* Resumo Geral */}
         <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-2xl font-bold mb-4">Resumo Geral</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -207,10 +240,15 @@ const Dashboard = () => {
               <p className="text-gray-600">Total de Alunos</p>
               <p className="text-2xl font-bold">{stats?.totalStudents}</p>
             </div>
-            <div className="p-4 bg-gray-50 rounded-lg">
-              <p className="text-gray-600">Aula Mais Popular</p>
-              <p className="text-2xl font-bold">{stats?.mostPopularClass}</p>
-            </div>
+            {[1, 2, 3, 4, 5].map((choice) => (
+              <div key={choice} className="p-4 bg-gray-50 rounded-lg">
+                <p className="text-gray-600">{choice}ª Escolha Mais Popular</p>
+                <p className="text-2xl font-bold">{stats?.topChoices[choice]?.name}</p>
+                <p className="text-sm text-gray-500">
+                  {stats?.topChoices[choice]?.count} alunos
+                </p>
+              </div>
+            ))}
             <div className="p-4 bg-gray-50 rounded-lg">
               <p className="text-gray-600">Dia Mais Popular</p>
               <p className="text-2xl font-bold">{stats?.mostPopularDay}</p>
