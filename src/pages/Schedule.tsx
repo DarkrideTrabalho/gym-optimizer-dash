@@ -1,13 +1,12 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { useNavigate } from "react-router-dom";
 
 const Schedule = () => {
   const [schedule, setSchedule] = useState(null);
   const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
 
   const days = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"];
   const timeSlots = [
@@ -19,7 +18,34 @@ const Schedule = () => {
   ];
 
   const generateSchedule = async () => {
-    navigate('/');
+    setLoading(true);
+    try {
+      // Buscar preferências dos alunos
+      const { data: preferences, error: preferencesError } = await supabase
+        .from("class_preferences")
+        .select("*");
+
+      if (preferencesError) {
+        throw preferencesError;
+      }
+
+      // Chamar a edge function para gerar o horário otimizado
+      const { data, error } = await supabase.functions.invoke('generate-optimal-schedule', {
+        body: { preferences }
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      setSchedule(data.schedule);
+      toast.success("Horário gerado com sucesso!");
+    } catch (error) {
+      console.error("Erro ao gerar horário:", error);
+      toast.error("Erro ao gerar horário. Por favor, tente novamente.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -72,9 +98,13 @@ const Schedule = () => {
                           >
                             <div className="space-y-2">
                               {slots.map((slot, index) => (
-                                <div key={index} className="border-l-4 pl-2" style={{
-                                  borderColor: slot.room === 1 ? '#8B5CF6' : '#EC4899'
-                                }}>
+                                <div 
+                                  key={index} 
+                                  className="border-l-4 pl-2 rounded-lg bg-gray-50 p-2"
+                                  style={{
+                                    borderColor: slot.room === 1 ? '#8B5CF6' : '#EC4899'
+                                  }}
+                                >
                                   <div className="font-medium">{slot.class}</div>
                                   <div className="text-xs text-gray-400">
                                     Sala {slot.room} | {slot.teacher}
@@ -92,6 +122,26 @@ const Schedule = () => {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {schedule && (
+            <div className="mt-6">
+              <h3 className="text-lg font-semibold mb-2">Legenda:</h3>
+              <div className="flex gap-4">
+                <div className="flex items-center">
+                  <div className="w-4 h-4 bg-[#8B5CF6] mr-2"></div>
+                  <span className="text-sm text-gray-600">Sala 1</span>
+                </div>
+                <div className="flex items-center">
+                  <div className="w-4 h-4 bg-[#EC4899] mr-2"></div>
+                  <span className="text-sm text-gray-600">Sala 2</span>
+                </div>
+              </div>
+              <p className="text-sm text-gray-500 mt-2">
+                Score: Indica o nível de otimização baseado nas preferências dos alunos.
+                Quanto maior o valor, melhor a correspondência com as preferências.
+              </p>
             </div>
           )}
         </div>
