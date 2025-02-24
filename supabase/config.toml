@@ -5,4 +5,3 @@ project_id = "bcxbmtekswmoaorhlbek"
 [[functions]]
 name = "generate-optimal-schedule"
 verify_jwt = false
-
