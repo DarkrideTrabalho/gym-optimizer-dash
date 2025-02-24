@@ -24,8 +24,8 @@ const Navbar = () => {
             <Link
               to="/schedule"
               className={`px-3 py-2 rounded-md text-sm font-medium ${isActive(
-                "/"
-                //"/schedule"
+        
+             "/schedule"
               )}`}
             >
               Geração de Horário
