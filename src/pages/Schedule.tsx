@@ -8,7 +8,6 @@ const Schedule = () => {
   const [schedule, setSchedule] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  // Definir as constantes no escopo do componente
   const days = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"];
   const timeSlots = [
     "10:00 - 11:00",
@@ -28,7 +27,15 @@ const Schedule = () => {
       if (preferencesError) throw preferencesError;
 
       // Processamento das preferências para criar horário
-      const availability = {};
+      const availability: {
+        [key: string]: {
+          [key: string]: {
+            studentCount: number;
+            preferredClasses: { [key: string]: number };
+          };
+        };
+      } = {};
+
       days.forEach(day => {
         availability[day] = {};
         timeSlots.forEach(time => {
@@ -49,17 +56,19 @@ const Schedule = () => {
           if (days.includes(day)) {
             preference.time_blocks.forEach(time => {
               if (timeSlots.includes(time)) {
-                availability[day][time].studentCount++;
+                availability[day][time].studentCount += 1;
                 [
                   preference.favorite_class_1,
                   preference.favorite_class_2,
                   preference.favorite_class_3,
                   preference.favorite_class_4,
                   preference.favorite_class_5
-                ].forEach(className => {
+                ].forEach((className, index) => {
                   if (className) {
+                    // Peso maior para as primeiras escolhas
+                    const weight = 1 / (index + 1);
                     availability[day][time].preferredClasses[className] = 
-                      (availability[day][time].preferredClasses[className] || 0) + 1;
+                      (availability[day][time].preferredClasses[className] || 0) + weight;
                   }
                 });
               }
@@ -73,13 +82,14 @@ const Schedule = () => {
         day,
         slots: timeSlots.map(time => {
           const slot = availability[day][time];
-          const mostPreferredClass = Object.entries(slot.preferredClasses)
-            .sort((a, b) => b[1] - a[1])[0];
+          const sortedClasses = Object.entries(slot.preferredClasses)
+            .sort((a, b) => b[1] - a[1]);
           
           return {
             time,
-            class: mostPreferredClass ? mostPreferredClass[0] : "A ser definido",
-            students: slot.studentCount
+            class: sortedClasses.length > 0 ? sortedClasses[0][0] : "A ser definido",
+            students: slot.studentCount,
+            score: sortedClasses.length > 0 ? sortedClasses[0][1].toFixed(2) : "0"
           };
         })
       }));
@@ -99,7 +109,13 @@ const Schedule = () => {
       <div className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-bold">Geração de Horário</h2>
+            <div>
+              <h2 className="text-2xl font-bold">Geração de Horário</h2>
+              <p className="text-gray-600 mt-1">
+                O algoritmo considera as preferências dos alunos, priorizando primeiras escolhas
+                e evitando conflitos de horário.
+              </p>
+            </div>
             <Button onClick={generateSchedule} disabled={loading}>
               {loading ? "Gerando..." : "Gerar Horário"}
             </Button>
@@ -142,6 +158,9 @@ const Schedule = () => {
                               <div className="font-medium">{slot?.class}</div>
                               <div className="text-xs text-gray-400">
                                 {slot?.students} alunos disponíveis
+                              </div>
+                              <div className="text-xs text-gray-400">
+                                Score: {slot?.score}
                               </div>
                             </div>
                           </td>
