@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,10 +10,15 @@ const Schedule = () => {
   const days = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"];
   const timeSlots = [
     "10:00 - 11:00",
+    "10:30 - 11:30",
     "16:00 - 17:00",
+    "16:30 - 17:30",
     "17:00 - 18:00",
+    "17:30 - 18:30",
     "18:00 - 19:00",
+    "18:30 - 19:30",
     "19:00 - 20:00",
+    "19:30 - 20:30",
   ];
 
   const generateSchedule = async () => {
@@ -29,19 +33,29 @@ const Schedule = () => {
         throw preferencesError;
       }
 
+      // Adicionar logs para debug
+      console.log("Preferências recebidas:", preferences);
+
       // Chamar a edge function para gerar o horário otimizado
-      const { data, error } = await supabase.functions.invoke('generate-optimal-schedule', {
-        body: { preferences }
-      });
+      const { data, error } = await supabase.functions.invoke(
+        "generate-optimal-schedule",
+        {
+          body: { preferences },
+        }
+      );
+
+      // Adicionar logs para debug
+      console.log("Resposta da edge function:", data);
 
       if (error) {
+        console.error("Erro da edge function:", error);
         throw error;
       }
 
       setSchedule(data.schedule);
       toast.success("Horário gerado com sucesso!");
     } catch (error) {
-      console.error("Erro ao gerar horário:", error);
+      console.error("Erro detalhado ao gerar horário:", error);
       toast.error("Erro ao gerar horário. Por favor, tente novamente.");
     } finally {
       setLoading(false);
@@ -56,8 +70,9 @@ const Schedule = () => {
             <div>
               <h2 className="text-2xl font-bold">Geração de Horário</h2>
               <p className="text-gray-600 mt-1">
-                O algoritmo considera as preferências dos alunos, disponibilidade dos professores,
-                e capacidade das salas para gerar um horário otimizado.
+                O algoritmo considera as preferências dos alunos,
+                disponibilidade dos professores, e capacidade das salas para
+                gerar um horário otimizado.
               </p>
             </div>
             <Button onClick={generateSchedule} disabled={loading}>
@@ -73,7 +88,7 @@ const Schedule = () => {
                     <th className="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Horário
                     </th>
-                    {days.map(day => (
+                    {days.map((day) => (
                       <th
                         key={day}
                         className="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
@@ -84,12 +99,12 @@ const Schedule = () => {
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {timeSlots.map(time => (
+                  {timeSlots.map((time) => (
                     <tr key={time}>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                         {time}
                       </td>
-                      {days.map(day => {
+                      {days.map((day) => {
                         const slots = schedule?.[day]?.[time] || [];
                         return (
                           <td
@@ -98,14 +113,17 @@ const Schedule = () => {
                           >
                             <div className="space-y-2">
                               {slots.map((slot, index) => (
-                                <div 
-                                  key={index} 
+                                <div
+                                  key={index}
                                   className="border-l-4 pl-2 rounded-lg bg-gray-50 p-2"
                                   style={{
-                                    borderColor: slot.room === 1 ? '#8B5CF6' : '#EC4899'
+                                    borderColor:
+                                      slot.room === 1 ? "#8B5CF6" : "#EC4899",
                                   }}
                                 >
-                                  <div className="font-medium">{slot.class}</div>
+                                  <div className="font-medium">
+                                    {slot.class}
+                                  </div>
                                   <div className="text-xs text-gray-400">
                                     Sala {slot.room} | {slot.teacher}
                                   </div>
@@ -139,8 +157,9 @@ const Schedule = () => {
                 </div>
               </div>
               <p className="text-sm text-gray-500 mt-2">
-                Score: Indica o nível de otimização baseado nas preferências dos alunos.
-                Quanto maior o valor, melhor a correspondência com as preferências.
+                Score: Indica o nível de otimização baseado nas preferências dos
+                alunos. Quanto maior o valor, melhor a correspondência com as
+                preferências.
               </p>
             </div>
           )}

@@ -1,4 +1,3 @@
-
 // deno-lint-ignore-file no-explicit-any
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
@@ -34,10 +33,15 @@ const teachers = {
 const days = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"];
 const timeSlots = [
   "10:00 - 11:00",
+  "10:30 - 11:30",
   "16:00 - 17:00",
+  "16:30 - 17:30",
   "17:00 - 18:00",
+  "17:30 - 18:30",
   "18:00 - 19:00",
+  "18:30 - 19:30",
   "19:00 - 20:00",
+  "19:30 - 20:30"
 ];
 
 serve(async (req) => {
@@ -80,34 +84,74 @@ serve(async (req) => {
 
     // Processar preferências para outros horários
     console.log("Processando preferências para outros horários");
-    days.forEach(day => {
-      timeSlots.forEach(time => {
-        if (optimizedSchedule[day][time].length >= 2) return; // Já tem 2 aulas neste horário
+    const preferences = requestData.preferences;
 
-        // Tentar alocar aulas do Professor 2
-        if (optimizedSchedule[day][time].length < 2) {
-          const availableClass = teachers.professor2.classes[
-            Math.floor(Math.random() * teachers.professor2.classes.length)
-          ];
-          optimizedSchedule[day][time].push({
-            class: availableClass,
-            room: optimizedSchedule[day][time].length + 1,
-            teacher: "Professor 2",
-            score: 0.8
+    // Calcular pontuação para cada combinação de aula/horário
+    const scores: Record<string, Record<string, Record<string, number>>> = {};
+    teachers.professor2.classes.concat(teachers.professor3.classes).forEach(className => {
+      scores[className] = {};
+      days.forEach(day => {
+        scores[className][day] = {};
+        timeSlots.forEach(time => {
+          scores[className][day][time] = 0;
+        });
+      });
+    });
+
+    // Calcular pontuações baseadas nas preferências
+    preferences.forEach(pref => {
+      const classChoices = [
+        pref.favorite_class_1,
+        pref.favorite_class_2,
+        pref.favorite_class_3,
+        pref.favorite_class_4,
+        pref.favorite_class_5
+      ];
+
+      pref.preferred_days.forEach(day => {
+        if (!pref.unavailable_days.includes(day)) {
+          pref.time_blocks.forEach(time => {
+            classChoices.forEach((className, index) => {
+              if (scores[className]?.[day]?.[time] !== undefined) {
+                scores[className][day][time] += (5 - index) * 0.2; // Peso maior para primeiras escolhas
+              }
+            });
           });
         }
+      });
+    });
 
-        // Tentar alocar aulas do Professor 3
-        if (optimizedSchedule[day][time].length < 2) {
-          const availableClass = teachers.professor3.classes[
-            Math.floor(Math.random() * teachers.professor3.classes.length)
-          ];
-          optimizedSchedule[day][time].push({
-            class: availableClass,
-            room: optimizedSchedule[day][time].length + 1,
-            teacher: "Professor 3",
-            score: 0.7
+    // Alocar aulas baseado nas pontuações
+    days.forEach(day => {
+      timeSlots.forEach(time => {
+        if (optimizedSchedule[day][time].length < 2) { // Máximo 2 aulas por horário
+          // Encontrar melhor aula para este horário
+          let bestClass = '';
+          let bestScore = 0;
+          let bestTeacher = '';
+
+          Object.entries(scores).forEach(([className, dayScores]) => {
+            const score = dayScores[day][time];
+            if (score > bestScore) {
+              // Verificar qual professor pode dar esta aula
+              const teacher = teachers.professor2.classes.includes(className) 
+                ? "Professor 2" 
+                : "Professor 3";
+              
+              bestClass = className;
+              bestScore = score;
+              bestTeacher = teacher;
+            }
           });
+
+          if (bestScore > 0) {
+            optimizedSchedule[day][time].push({
+              class: bestClass,
+              room: optimizedSchedule[day][time].length + 1,
+              teacher: bestTeacher,
+              score: bestScore
+            });
+          }
         }
       });
     });
