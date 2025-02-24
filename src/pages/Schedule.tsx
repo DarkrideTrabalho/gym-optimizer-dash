@@ -1,12 +1,13 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
 
 const Schedule = () => {
   const [schedule, setSchedule] = useState(null);
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   const days = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"];
   const timeSlots = [
@@ -18,90 +19,7 @@ const Schedule = () => {
   ];
 
   const generateSchedule = async () => {
-    setLoading(true);
-    try {
-      const { data: preferences, error: preferencesError } = await supabase
-        .from("class_preferences")
-        .select("*");
-
-      if (preferencesError) throw preferencesError;
-
-      // Processamento das preferências para criar horário
-      const availability: {
-        [key: string]: {
-          [key: string]: {
-            studentCount: number;
-            preferredClasses: { [key: string]: number };
-          };
-        };
-      } = {};
-
-      days.forEach(day => {
-        availability[day] = {};
-        timeSlots.forEach(time => {
-          availability[day][time] = {
-            studentCount: 0,
-            preferredClasses: {}
-          };
-        });
-      });
-
-      // Calcular disponibilidade
-      preferences.forEach(preference => {
-        const availableDays = preference.preferred_days.filter(
-          day => !preference.unavailable_days.includes(day)
-        );
-
-        availableDays.forEach(day => {
-          if (days.includes(day)) {
-            preference.time_blocks.forEach(time => {
-              if (timeSlots.includes(time)) {
-                availability[day][time].studentCount += 1;
-                [
-                  preference.favorite_class_1,
-                  preference.favorite_class_2,
-                  preference.favorite_class_3,
-                  preference.favorite_class_4,
-                  preference.favorite_class_5
-                ].forEach((className, index) => {
-                  if (className) {
-                    // Peso maior para as primeiras escolhas
-                    const weight = 1 / (index + 1);
-                    availability[day][time].preferredClasses[className] = 
-                      (availability[day][time].preferredClasses[className] || 0) + weight;
-                  }
-                });
-              }
-            });
-          }
-        });
-      });
-
-      // Criar horário com base nas preferências
-      const generatedSchedule = days.map(day => ({
-        day,
-        slots: timeSlots.map(time => {
-          const slot = availability[day][time];
-          const sortedClasses = Object.entries(slot.preferredClasses)
-            .sort((a, b) => b[1] - a[1]);
-          
-          return {
-            time,
-            class: sortedClasses.length > 0 ? sortedClasses[0][0] : "A ser definido",
-            students: slot.studentCount,
-            score: sortedClasses.length > 0 ? sortedClasses[0][1].toFixed(2) : "0"
-          };
-        })
-      }));
-
-      setSchedule(generatedSchedule);
-      toast.success("Horário gerado com sucesso!");
-    } catch (error) {
-      console.error("Error generating schedule:", error);
-      toast.error("Erro ao gerar horário");
-    } finally {
-      setLoading(false);
-    }
+    navigate('/');
   };
 
   return (
@@ -112,8 +30,8 @@ const Schedule = () => {
             <div>
               <h2 className="text-2xl font-bold">Geração de Horário</h2>
               <p className="text-gray-600 mt-1">
-                O algoritmo considera as preferências dos alunos, priorizando primeiras escolhas
-                e evitando conflitos de horário.
+                O algoritmo considera as preferências dos alunos, disponibilidade dos professores,
+                e capacidade das salas para gerar um horário otimizado.
               </p>
             </div>
             <Button onClick={generateSchedule} disabled={loading}>
@@ -146,22 +64,26 @@ const Schedule = () => {
                         {time}
                       </td>
                       {days.map(day => {
-                        const slot = schedule
-                          .find(s => s.day === day)
-                          ?.slots.find(s => s.time === time);
+                        const slots = schedule?.[day]?.[time] || [];
                         return (
                           <td
                             key={`${day}-${time}`}
                             className="px-6 py-4 whitespace-nowrap text-sm text-gray-500"
                           >
-                            <div>
-                              <div className="font-medium">{slot?.class}</div>
-                              <div className="text-xs text-gray-400">
-                                {slot?.students} alunos disponíveis
-                              </div>
-                              <div className="text-xs text-gray-400">
-                                Score: {slot?.score}
-                              </div>
+                            <div className="space-y-2">
+                              {slots.map((slot, index) => (
+                                <div key={index} className="border-l-4 pl-2" style={{
+                                  borderColor: slot.room === 1 ? '#8B5CF6' : '#EC4899'
+                                }}>
+                                  <div className="font-medium">{slot.class}</div>
+                                  <div className="text-xs text-gray-400">
+                                    Sala {slot.room} | {slot.teacher}
+                                  </div>
+                                  <div className="text-xs text-gray-400">
+                                    Score: {Number(slot.score).toFixed(2)}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
                           </td>
                         );
