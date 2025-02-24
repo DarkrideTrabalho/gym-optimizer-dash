@@ -24,19 +24,31 @@ const Schedule = () => {
   const generateSchedule = async () => {
     setLoading(true);
     try {
+      // Log inicial
+      console.log("Iniciando geração de horário");
+
       // Buscar preferências dos alunos
       const { data: preferences, error: preferencesError } = await supabase
         .from("class_preferences")
         .select("*");
 
+      // Log das preferências
+      console.log("Preferências:", preferences);
+      console.log("Erro de preferências:", preferencesError);
+
       if (preferencesError) {
+        console.error("Erro ao buscar preferências:", preferencesError);
         throw preferencesError;
       }
 
-      // Adicionar logs para debug
-      console.log("Preferências recebidas:", preferences);
+      if (!preferences || preferences.length === 0) {
+        console.error("Nenhuma preferência encontrada");
+        throw new Error("Nenhuma preferência encontrada");
+      }
 
-      // Chamar a edge function para gerar o horário otimizado
+      // Chamar a edge function
+      console.log("Chamando edge function com dados:", { preferences });
+
       const { data, error } = await supabase.functions.invoke(
         "generate-optimal-schedule",
         {
@@ -44,18 +56,24 @@ const Schedule = () => {
         }
       );
 
-      // Adicionar logs para debug
+      // Log da resposta
       console.log("Resposta da edge function:", data);
+      console.log("Erro da edge function:", error);
 
       if (error) {
-        console.error("Erro da edge function:", error);
+        console.error("Erro detalhado da edge function:", error);
         throw error;
+      }
+
+      if (!data || !data.schedule) {
+        console.error("Resposta inválida da edge function");
+        throw new Error("Resposta inválida da edge function");
       }
 
       setSchedule(data.schedule);
       toast.success("Horário gerado com sucesso!");
     } catch (error) {
-      console.error("Erro detalhado ao gerar horário:", error);
+      console.error("Erro completo:", error);
       toast.error("Erro ao gerar horário. Por favor, tente novamente.");
     } finally {
       setLoading(false);
