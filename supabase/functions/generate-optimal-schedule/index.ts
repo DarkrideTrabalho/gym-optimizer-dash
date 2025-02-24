@@ -32,12 +32,17 @@ const teachers = {
 };
 
 serve(async (req) => {
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // Log request received
+    console.log("Processing request...");
+
     const { preferences } = await req.json();
+    console.log("Received preferences:", JSON.stringify(preferences, null, 2));
 
     // Converta os dados do Supabase para um formato mais fácil de processar
     const processedPreferences = preferences.reduce((acc, pref) => {
@@ -62,6 +67,8 @@ serve(async (req) => {
       });
       return acc;
     }, {});
+
+    console.log("Processed preferences:", JSON.stringify(processedPreferences, null, 2));
 
     // Função para verificar se um horário está disponível em uma sala
     const isTimeSlotAvailable = (
@@ -101,12 +108,14 @@ serve(async (req) => {
 
     // Primeiro, alocar horários fixos do Professor 1 (Zumba)
     teachers.professor1.fixedSchedule.forEach(({ day, time }) => {
-      optimizedSchedule[day][time].push({
-        class: "Zumba",
-        room: 1,
-        teacher: "Professor 1",
-        score: processedPreferences[time]?.classes["Zumba"] || 0
-      });
+      if (optimizedSchedule[day] && optimizedSchedule[day][time]) {
+        optimizedSchedule[day][time].push({
+          class: "Zumba",
+          room: 1,
+          teacher: "Professor 1",
+          score: processedPreferences[time]?.classes["Zumba"] || 0
+        });
+      }
     });
 
     // Depois, alocar as demais aulas baseado nas preferências
@@ -151,6 +160,8 @@ serve(async (req) => {
       });
     });
 
+    console.log("Generated schedule:", JSON.stringify(optimizedSchedule, null, 2));
+
     return new Response(
       JSON.stringify({ schedule: optimizedSchedule }),
       { 
@@ -163,7 +174,10 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error:', error);
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message,
+        details: error.stack
+      }),
       { 
         status: 500,
         headers: { 
