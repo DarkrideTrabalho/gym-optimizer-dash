@@ -34,10 +34,15 @@ const teachers = {
 const days = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"];
 const timeSlots = [
   "10:00 - 11:00",
+  "10:30 - 11:30",
   "16:00 - 17:00",
+  "16:30 - 17:30",
   "17:00 - 18:00",
+  "17:30 - 18:30",
   "18:00 - 19:00",
+  "18:30 - 19:30",
   "19:00 - 20:00",
+  "19:30 - 20:30",
 ];
 
 serve(async (req) => {
@@ -57,7 +62,26 @@ serve(async (req) => {
       });
     });
 
-    // Alocar horários fixos do Professor 1 (Zumba)
+    // Função para verificar se um professor está disponível em um horário
+    const isTeacherAvailable = (teacher: string, day: string, time: string) => {
+      return !optimizedSchedule[day][time].some(slot => slot.teacher === teacher);
+    };
+
+    // Função para adicionar uma aula ao horário
+    const addClassToSchedule = (day: string, time: string, teacherObj: any, room: number) => {
+      const randomClassIndex = Math.floor(Math.random() * teacherObj.classes.length);
+      const className = teacherObj.classes[randomClassIndex];
+      
+      optimizedSchedule[day][time].push({
+        class: className,
+        room: room,
+        teacher: teacherObj.name,
+        score: 0.8
+      });
+    };
+
+    // 1. Primeiro, alocar horários fixos do Professor 1 (Zumba)
+    console.log("Alocando horários fixos de Zumba");
     teachers.professor1.fixedSchedule.forEach(({ day, time }) => {
       optimizedSchedule[day][time].push({
         class: "Zumba",
@@ -67,45 +91,38 @@ serve(async (req) => {
       });
     });
 
-    // Alocar aulas para os demais horários
+    // 2. Depois, alocar outras aulas em todos os horários disponíveis
+    console.log("Alocando outras aulas");
     days.forEach(day => {
       timeSlots.forEach(time => {
-        // Pular se já tiver duas aulas neste horário
-        if (optimizedSchedule[day][time].length >= 2) return;
+        // Se já tiver 2 aulas neste horário, pular
+        if (optimizedSchedule[day][time].length >= 2) {
+          return;
+        }
 
-        // Lista de professores disponíveis neste horário
-        const availableTeachers = [teachers.professor2, teachers.professor3].filter(teacher => {
-          // Verificar se o professor já está dando aula neste horário
-          return !optimizedSchedule[day][time].some(slot => slot.teacher === teacher.name);
-        });
+        // Tentar alocar Professor 2
+        if (isTeacherAvailable("Professor 2", day, time)) {
+          const nextRoom = optimizedSchedule[day][time].length + 1;
+          addClassToSchedule(day, time, teachers.professor2, nextRoom);
+        }
 
-        // Para cada sala disponível, tentar alocar uma aula
-        while (optimizedSchedule[day][time].length < 2 && availableTeachers.length > 0) {
-          // Escolher um professor aleatório entre os disponíveis
-          const teacherIndex = Math.floor(Math.random() * availableTeachers.length);
-          const teacher = availableTeachers[teacherIndex];
-
-          // Escolher uma aula aleatória do professor
-          const availableClass = teacher.classes[Math.floor(Math.random() * teacher.classes.length)];
-
-          // Adicionar a aula ao horário
-          optimizedSchedule[day][time].push({
-            class: availableClass,
-            room: optimizedSchedule[day][time].length + 1,
-            teacher: teacher.name,
-            score: 0.8 // Score padrão para teste
-          });
-
-          // Remover o professor da lista de disponíveis
-          availableTeachers.splice(teacherIndex, 1);
+        // Se ainda houver espaço, tentar alocar Professor 3
+        if (optimizedSchedule[day][time].length < 2 && 
+            isTeacherAvailable("Professor 3", day, time)) {
+          const nextRoom = optimizedSchedule[day][time].length + 1;
+          addClassToSchedule(day, time, teachers.professor3, nextRoom);
         }
       });
     });
 
     console.log("Horário gerado com sucesso");
+    console.log("Exemplo de horário gerado:", JSON.stringify(optimizedSchedule["Segunda"], null, 2));
 
     return new Response(
-      JSON.stringify({ schedule: optimizedSchedule }),
+      JSON.stringify({ 
+        schedule: optimizedSchedule,
+        message: "Horário gerado com sucesso"
+      }),
       { 
         headers: { 
           ...corsHeaders,
@@ -119,7 +136,8 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         error: true,
-        message: error.message || "Erro interno ao gerar horário"
+        message: error.message || "Erro interno ao gerar horário",
+        details: error.stack
       }),
       {
         status: 500,
