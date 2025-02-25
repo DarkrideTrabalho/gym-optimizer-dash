@@ -93,7 +93,9 @@ const Schedule = () => {
                 gerar um horário otimizado.
               </p>
             </div>
-          
+          <Button onClick={generateSchedule} disabled={loading}>
+              {loading ? "Gerando..." : "Gerar Horário"}
+            </Button>
           </div>
 
           {schedule && (
