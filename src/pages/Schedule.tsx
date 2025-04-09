@@ -1,11 +1,15 @@
+
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { InfoIcon } from "lucide-react";
 
 const Schedule = () => {
   const [schedule, setSchedule] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
 
   const days = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"];
   const timeSlots = [
@@ -21,10 +25,169 @@ const Schedule = () => {
     "19:30 - 20:30",
   ];
 
+  // Lista de aulas e professores predefinidos para usar como fallback
+  const fallbackClasses = {
+    "Zumba": "Professor 1",
+    "Body Upper": "Professor 2",
+    "Core Express": "Professor 2",
+    "Fit Step": "Professor 2",
+    "Fullbody": "Professor 2",
+    "GAP": "Professor 2",
+    "Hiit": "Professor 2",
+    "Localizada": "Professor 2",
+    "Mobistretching": "Professor 2",
+    "Treino Livre": "Professor 2",
+    "Tabatta": "Professor 2",
+    "Vitta Core legs": "Professor 2",
+    "Pilates": "Professor 3",
+    "Power Yoga": "Professor 3",
+    "Yoga Flow": "Professor 3"
+  };
+
+  const generateBasicSchedule = (preferences) => {
+    try {
+      console.log("Gerando horário básico com dados locais");
+      
+      // Criar um horário básico
+      const scheduleTemplate = {};
+      days.forEach(day => {
+        scheduleTemplate[day] = {};
+        timeSlots.forEach(slot => {
+          scheduleTemplate[day][slot] = [];
+        });
+      });
+
+      // Adicionar aulas fixas do Professor 1 (Zumba)
+      scheduleTemplate["Terça"]["19:00 - 20:00"] = [{
+        class: "Zumba",
+        teacher: "Professor 1",
+        room: 1,
+        score: 1.0
+      }];
+      
+      scheduleTemplate["Quinta"]["18:30 - 19:30"] = [{
+        class: "Zumba",
+        teacher: "Professor 1",
+        room: 1,
+        score: 1.0
+      }];
+
+      // Distribuir outras aulas com base nas preferências
+      const classPopularity = {};
+      const classesAssigned = new Set(["Zumba"]);
+      
+      // Calcular popularidade das aulas
+      preferences.forEach(pref => {
+        [pref.favorite_class_1, pref.favorite_class_2, pref.favorite_class_3, 
+         pref.favorite_class_4, pref.favorite_class_5].forEach(cls => {
+          if (cls && cls !== "Zumba") {
+            classPopularity[cls] = (classPopularity[cls] || 0) + 1;
+          }
+        });
+      });
+      
+      // Ordenar aulas por popularidade
+      const sortedClasses = Object.keys(classPopularity).sort((a, b) => 
+        classPopularity[b] - classPopularity[a]
+      );
+      
+      // Determinar dias e horários mais populares
+      const dayPopularity = {};
+      const timePopularity = {};
+      
+      preferences.forEach(pref => {
+        (pref.preferred_days || []).forEach(day => {
+          dayPopularity[day] = (dayPopularity[day] || 0) + 1;
+        });
+        
+        (pref.time_blocks || []).forEach(time => {
+          timePopularity[time] = (timePopularity[time] || 0) + 1;
+        });
+      });
+
+      // Distribuir aulas do Professor 2 e 3
+      // Primeiro, distribuir as aulas mais populares
+      for (const className of sortedClasses) {
+        if (!classesAssigned.has(className)) {
+          const professor = fallbackClasses[className];
+          if (!professor) continue;
+          
+          // Encontrar o melhor slot para esta aula
+          let bestScore = -1;
+          let bestDay = null;
+          let bestTime = null;
+          let bestRoom = null;
+          
+          for (const day of days) {
+            // Pular dias com aulas fixas de Zumba para Professor 2 (se for uma aula do Professor 2)
+            if (professor === "Professor 2" && 
+                ((day === "Terça" && className !== "Zumba") || 
+                 (day === "Quinta" && className !== "Zumba"))) {
+              continue;
+            }
+            
+            for (const timeSlot of timeSlots) {
+              // Verificar se este slot já está ocupado por este professor
+              let slotOccupied = false;
+              for (const room of [1, 2]) {
+                if (scheduleTemplate[day][timeSlot].some(
+                  slot => slot.teacher === professor)) {
+                  slotOccupied = true;
+                  break;
+                }
+              }
+              
+              if (slotOccupied) continue;
+              
+              // Calcular pontuação para este slot
+              const dayScore = dayPopularity[day] || 0;
+              const timeScore = timePopularity[timeSlot] || 0;
+              const totalScore = dayScore + timeScore;
+              
+              if (totalScore > bestScore) {
+                // Verificar qual sala está disponível
+                let availableRoom = null;
+                if (!scheduleTemplate[day][timeSlot].some(slot => slot.room === 1)) {
+                  availableRoom = 1;
+                } else if (!scheduleTemplate[day][timeSlot].some(slot => slot.room === 2)) {
+                  availableRoom = 2;
+                }
+                
+                if (availableRoom) {
+                  bestScore = totalScore;
+                  bestDay = day;
+                  bestTime = timeSlot;
+                  bestRoom = availableRoom;
+                }
+              }
+            }
+          }
+          
+          if (bestDay && bestTime && bestRoom) {
+            scheduleTemplate[bestDay][bestTime].push({
+              class: className,
+              teacher: professor,
+              room: bestRoom,
+              score: (bestScore / 10).toFixed(2) // Normalizar pontuação
+            });
+            
+            classesAssigned.add(className);
+          }
+        }
+      }
+      
+      return scheduleTemplate;
+    } catch (error) {
+      console.error("Erro ao gerar horário básico:", error);
+      throw error;
+    }
+  };
+
   const generateSchedule = async () => {
     setLoading(true);
+    setError(null);
+    
     try {
-      // Log inicial
       console.log("Iniciando geração de horário");
 
       // Buscar preferências dos alunos
@@ -32,10 +195,8 @@ const Schedule = () => {
         .from("class_preferences")
         .select("*");
 
-      // Log das preferências
       console.log("Preferências:", preferences);
-      console.log("Erro de preferências:", preferencesError);
-
+      
       if (preferencesError) {
         console.error("Erro ao buscar preferências:", preferencesError);
         throw preferencesError;
@@ -46,34 +207,47 @@ const Schedule = () => {
         throw new Error("Nenhuma preferência encontrada");
       }
 
-      // Chamar a edge function
+      // Tentar chamar a edge function
       console.log("Chamando edge function com dados:", { preferences });
 
-      const { data, error } = await supabase.functions.invoke(
-        "generate-optimal-schedule",
-        {
-          body: { preferences },
+      try {
+        const { data, error } = await supabase.functions.invoke(
+          "generate-optimal-schedule",
+          {
+            body: { preferences },
+          }
+        );
+
+        console.log("Resposta da edge function:", data);
+        console.log("Erro da edge function:", error);
+
+        if (error) {
+          console.error("Erro detalhado da edge function:", error);
+          throw error;
         }
-      );
 
-      // Log da resposta
-      console.log("Resposta da edge function:", data);
-      console.log("Erro da edge function:", error);
-
-      if (error) {
-        console.error("Erro detalhado da edge function:", error);
-        throw error;
+        if (!data || !data.schedule) {
+          console.error("Resposta inválida da edge function, usando método alternativo");
+          // Se a edge function falhar, usar o método local
+          const localSchedule = generateBasicSchedule(preferences);
+          setSchedule(localSchedule);
+          toast.success("Horário gerado com sucesso (modo local)!");
+        } else {
+          setSchedule(data.schedule);
+          toast.success("Horário gerado com sucesso!");
+        }
+      } catch (edgeFunctionError) {
+        console.error("Erro ao chamar edge function:", edgeFunctionError);
+        console.log("Usando método alternativo de geração de horário");
+        
+        // Se a edge function falhar, usar o método local
+        const localSchedule = generateBasicSchedule(preferences);
+        setSchedule(localSchedule);
+        toast.success("Horário gerado com sucesso (modo local)!");
       }
-
-      if (!data || !data.schedule) {
-        console.error("Resposta inválida da edge function");
-        throw new Error("Resposta inválida da edge function");
-      }
-
-      setSchedule(data.schedule);
-      toast.success("Horário gerado com sucesso!");
     } catch (error) {
       console.error("Erro completo:", error);
+      setError("Erro ao gerar horário. Por favor, tente novamente.");
       toast.error("Erro ao gerar horário. Por favor, tente novamente.");
     } finally {
       setLoading(false);
@@ -93,10 +267,18 @@ const Schedule = () => {
                 gerar um horário otimizado.
               </p>
             </div>
-          <Button onClick={generateSchedule} disabled={loading}>
+            <Button onClick={generateSchedule} disabled={loading}>
               {loading ? "Gerando..." : "Gerar Horário"}
             </Button>
           </div>
+
+          {error && (
+            <Alert variant="destructive" className="mb-6">
+              <InfoIcon className="h-4 w-4" />
+              <AlertTitle>Erro</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
 
           {schedule && (
             <div className="overflow-x-auto">

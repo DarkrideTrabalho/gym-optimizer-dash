@@ -21,7 +21,6 @@ const Navbar = () => {
             >
               Dashboard
             </Link>
-            {/* Botão temporariamente desativado 
             <Link
               to="/schedule"
               className={`px-3 py-2 rounded-md text-sm font-medium ${isActive(
@@ -30,7 +29,6 @@ const Navbar = () => {
             >
               Geração de Horário
             </Link>
-            */}
           </div>
         </div>
       </div>
