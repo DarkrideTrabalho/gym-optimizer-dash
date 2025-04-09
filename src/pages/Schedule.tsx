@@ -4,12 +4,13 @@ import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { InfoIcon } from "lucide-react";
+import { InfoIcon, RefreshCw } from "lucide-react";
 
 const Schedule = () => {
   const [schedule, setSchedule] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [usedEdgeFunction, setUsedEdgeFunction] = useState(true);
 
   const days = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"];
   const timeSlots = [
@@ -186,9 +187,10 @@ const Schedule = () => {
   const generateSchedule = async () => {
     setLoading(true);
     setError(null);
+    setUsedEdgeFunction(true);
     
     try {
-      console.log("Iniciando geração de horário");
+      console.log("Iniciando geração de horário com IA");
 
       // Buscar preferências dos alunos
       const { data: preferences, error: preferencesError } = await supabase
@@ -207,7 +209,7 @@ const Schedule = () => {
         throw new Error("Nenhuma preferência encontrada");
       }
 
-      // Tentar chamar a edge function
+      // Chamar a edge function para geração com IA
       console.log("Chamando edge function com dados:", { preferences });
 
       try {
@@ -219,36 +221,51 @@ const Schedule = () => {
         );
 
         console.log("Resposta da edge function:", data);
-        console.log("Erro da edge function:", error);
-
+        
         if (error) {
-          console.error("Erro detalhado da edge function:", error);
+          console.error("Erro da edge function:", error);
           throw error;
         }
 
         if (!data || !data.schedule) {
-          console.error("Resposta inválida da edge function, usando método alternativo");
-          // Se a edge function falhar, usar o método local
-          const localSchedule = generateBasicSchedule(preferences);
-          setSchedule(localSchedule);
-          toast.success("Horário gerado com sucesso (modo local)!");
-        } else {
-          setSchedule(data.schedule);
-          toast.success("Horário gerado com sucesso!");
+          console.error("Resposta inválida da edge function");
+          throw new Error("Resposta inválida da edge function");
         }
+        
+        setSchedule(data.schedule);
+        setUsedEdgeFunction(true);
+        toast.success("Horário gerado com sucesso pela IA!");
       } catch (edgeFunctionError) {
         console.error("Erro ao chamar edge function:", edgeFunctionError);
-        console.log("Usando método alternativo de geração de horário");
         
-        // Se a edge function falhar, usar o método local
-        const localSchedule = generateBasicSchedule(preferences);
-        setSchedule(localSchedule);
-        toast.success("Horário gerado com sucesso (modo local)!");
+        // Tentar novamente a edge function em caso de falha
+        toast.error("Erro na primeira tentativa. Tentando novamente...");
+        
+        try {
+          const { data: retryData, error: retryError } = await supabase.functions.invoke(
+            "generate-optimal-schedule",
+            {
+              body: { preferences },
+            }
+          );
+          
+          if (retryError || !retryData || !retryData.schedule) {
+            throw new Error("Falha na segunda tentativa");
+          }
+          
+          setSchedule(retryData.schedule);
+          setUsedEdgeFunction(true);
+          toast.success("Horário gerado com sucesso na segunda tentativa!");
+        } catch (retryError) {
+          console.error("Erro na segunda tentativa:", retryError);
+          throw new Error("Não foi possível gerar o horário com a IA após múltiplas tentativas");
+        }
       }
     } catch (error) {
       console.error("Erro completo:", error);
-      setError("Erro ao gerar horário. Por favor, tente novamente.");
-      toast.error("Erro ao gerar horário. Por favor, tente novamente.");
+      setError("Erro ao gerar horário com IA. Por favor, tente novamente.");
+      toast.error("Erro ao gerar horário com IA. Por favor, tente novamente.");
+      setUsedEdgeFunction(false);
     } finally {
       setLoading(false);
     }
@@ -267,8 +284,19 @@ const Schedule = () => {
                 gerar um horário otimizado.
               </p>
             </div>
-            <Button onClick={generateSchedule} disabled={loading}>
-              {loading ? "Gerando..." : "Gerar Horário"}
+            <Button 
+              onClick={generateSchedule} 
+              disabled={loading}
+              className="flex items-center gap-2"
+            >
+              {loading ? (
+                <>
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  Gerando...
+                </>
+              ) : (
+                "Gerar Horário com IA"
+              )}
             </Button>
           </div>
 
@@ -281,66 +309,78 @@ const Schedule = () => {
           )}
 
           {schedule && (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead>
-                  <tr>
-                    <th className="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Horário
-                    </th>
-                    {days.map((day) => (
-                      <th
-                        key={day}
-                        className="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                      >
-                        {day}
+            <>
+              {!usedEdgeFunction && (
+                <Alert className="mb-6 border-amber-300 bg-amber-50">
+                  <InfoIcon className="h-4 w-4 text-amber-500" />
+                  <AlertTitle className="text-amber-800">Aviso</AlertTitle>
+                  <AlertDescription className="text-amber-700">
+                    O horário foi gerado usando o método básico, sem o uso completo da IA.
+                    Tente novamente para melhor otimização.
+                  </AlertDescription>
+                </Alert>
+              )}
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead>
+                    <tr>
+                      <th className="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Horário
                       </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {timeSlots.map((time) => (
-                    <tr key={time}>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                        {time}
-                      </td>
-                      {days.map((day) => {
-                        const slots = schedule?.[day]?.[time] || [];
-                        return (
-                          <td
-                            key={`${day}-${time}`}
-                            className="px-6 py-4 whitespace-nowrap text-sm text-gray-500"
-                          >
-                            <div className="space-y-2">
-                              {slots.map((slot, index) => (
-                                <div
-                                  key={index}
-                                  className="border-l-4 pl-2 rounded-lg bg-gray-50 p-2"
-                                  style={{
-                                    borderColor:
-                                      slot.room === 1 ? "#8B5CF6" : "#EC4899",
-                                  }}
-                                >
-                                  <div className="font-medium">
-                                    {slot.class}
-                                  </div>
-                                  <div className="text-xs text-gray-400">
-                                    Sala {slot.room} | {slot.teacher}
-                                  </div>
-                                  <div className="text-xs text-gray-400">
-                                    Score: {Number(slot.score).toFixed(2)}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
-                          </td>
-                        );
-                      })}
+                      {days.map((day) => (
+                        <th
+                          key={day}
+                          className="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                        >
+                          {day}
+                        </th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {timeSlots.map((time) => (
+                      <tr key={time}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {time}
+                        </td>
+                        {days.map((day) => {
+                          const slots = schedule?.[day]?.[time] || [];
+                          return (
+                            <td
+                              key={`${day}-${time}`}
+                              className="px-6 py-4 whitespace-nowrap text-sm text-gray-500"
+                            >
+                              <div className="space-y-2">
+                                {slots.map((slot, index) => (
+                                  <div
+                                    key={index}
+                                    className="border-l-4 pl-2 rounded-lg bg-gray-50 p-2"
+                                    style={{
+                                      borderColor:
+                                        slot.room === 1 ? "#8B5CF6" : "#EC4899",
+                                    }}
+                                  >
+                                    <div className="font-medium">
+                                      {slot.class}
+                                    </div>
+                                    <div className="text-xs text-gray-400">
+                                      Sala {slot.room} | {slot.teacher}
+                                    </div>
+                                    <div className="text-xs text-gray-400">
+                                      Score: {Number(slot.score).toFixed(2)}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
 
           {schedule && (
@@ -361,6 +401,11 @@ const Schedule = () => {
                 alunos. Quanto maior o valor, melhor a correspondência com as
                 preferências.
               </p>
+              {usedEdgeFunction && (
+                <p className="text-sm text-emerald-600 mt-2 font-medium">
+                  Este horário foi gerado usando o algoritmo de IA otimizado para máxima eficiência.
+                </p>
+              )}
             </div>
           )}
         </div>
