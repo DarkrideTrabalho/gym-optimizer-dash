@@ -200,19 +200,45 @@ serve(async (req) => {
       });
     });
 
-    // 1. Primeiro, alocar horários fixos do Professor 1 (Zumba)
-    console.log("Alocando horários fixos de Zumba");
+    // Manter registro de professores já alocados em cada horário/dia
+    const allocatedTeachers: Record<string, Record<string, string[]>> = {};
+    days.forEach(day => {
+      allocatedTeachers[day] = {};
+      timeSlots.forEach(time => {
+        allocatedTeachers[day][time] = [];
+      });
+    });
+
+    // Manter contagem de cada aula alocada para distribuição equilibrada
+    const classAllocationCount: Record<string, number> = {};
+    
+    // 1. PRIMEIRO: Alocar APENAS os horários fixos de Zumba (Professor 1)
+    console.log("Alocando horários fixos de Zumba - ESTRITAMENTE nas horas determinadas");
+    
+    // Limpar quaisquer alocações existentes de Zumba para garantir que só apareça nos horários fixos
+    let zumbaAllocated = 0;
+    
     teachers.professor1.fixedSchedule?.forEach(({ day, time }) => {
+      console.log(`Alocando Zumba fixo em ${day} ${time}`);
       optimizedSchedule[day][time].push({
         class: "Zumba",
         room: 1,
         teacher: "Professor 1",
         score: calculateClassScore("Zumba", time, day, preferences)
       });
+      
+      allocatedTeachers[day][time].push("Professor 1");
+      classAllocationCount["Zumba"] = (classAllocationCount["Zumba"] || 0) + 1;
+      zumbaAllocated++;
     });
+    
+    console.log(`Total de aulas de Zumba alocadas: ${zumbaAllocated}`);
+    if (zumbaAllocated !== 2) {
+      console.warn("ATENÇÃO: Número incorreto de aulas de Zumba alocadas!");
+    }
 
-    // 2. Para os dias com alta demanda, priorizar aulas populares
-    console.log("Alocando aulas baseado em análise de popularidade");
+    // 2. Ordenar dias, horários e classes por popularidade para otimizar alocação
+    console.log("Ordenando dias, horários e classes por popularidade");
     
     // Ordenar dias por popularidade
     const sortedDays = [...days].sort((a, b) => 
@@ -233,114 +259,56 @@ serve(async (req) => {
     console.log("Horários ordenados por popularidade:", sortedTimeSlots);
     console.log("Aulas ordenadas por popularidade:", sortedClasses);
 
-    // Manter registro de professores já alocados em cada horário/dia
-    const allocatedTeachers: Record<string, Record<string, string[]>> = {};
-    days.forEach(day => {
-      allocatedTeachers[day] = {};
-      timeSlots.forEach(time => {
-        allocatedTeachers[day][time] = [];
-      });
-    });
-
-    // Marcar Professor 1 como alocado nos horários fixos
-    teachers.professor1.fixedSchedule?.forEach(({ day, time }) => {
-      allocatedTeachers[day][time].push("Professor 1");
-    });
-
-    // Distribuir aulas populares nos horários e dias populares
-    for (const className of sortedClasses) {
-      // Pular Zumba que já foi alocada
-      if (className === "Zumba") continue;
+    // 3. Distribuir aulas populares para todos os dias da semana
+    // Processamos dia por dia para garantir uma distribuição equilibrada
+    console.log("Distribuindo aulas populares para todos os dias");
+    
+    for (const day of days) {
+      console.log(`Processando dia: ${day}`);
       
-      // Encontrar o professor para esta aula
-      let teacherForClass: string | null = null;
-      let classDuration = 60; // Default
+      // Filtrar aulas adequadas para este dia (pular Zumba que já foi alocada)
+      const eligibleClasses = sortedClasses.filter(c => c !== "Zumba");
       
-      for (const [teacherId, teacher] of Object.entries(teachers)) {
-        const foundClass = teacher.classes.find(c => c.name === className);
-        if (foundClass) {
-          teacherForClass = teacher.name;
-          classDuration = foundClass.duration;
-          break;
-        }
-      }
-      
-      if (!teacherForClass) continue;
-      
-      // Tenta alocar a aula em dias e horários populares
-      let allocated = false;
-      
-      for (const day of sortedDays) {
-        if (allocated) break;
-        
-        // Pular dias com alta indisponibilidade
-        if (dayAnalysis.unavailability[day] > preferences.length / 3) {
-          console.log(`Pulando ${day} devido a alta indisponibilidade`);
+      // Para este dia, tentar alocar aulas em cada horário disponível
+      for (const time of sortedTimeSlots) {
+        // Pular horários fixos de Zumba
+        if ((day === "Terça" && time === "19:00 - 20:00") || 
+            (day === "Quinta" && time === "18:30 - 19:30")) {
           continue;
         }
         
-        for (const time of sortedTimeSlots) {
-          if (allocated) break;
-          
-          // Verificar se o professor já está alocado neste horário
-          if (allocatedTeachers[day][time].includes(teacherForClass)) {
+        // Tentar alocar até 2 aulas neste horário (uma em cada sala)
+        for (let room = 1; room <= 2; room++) {
+          // Verificar se já temos alguma aula neste slot/sala
+          if (optimizedSchedule[day][time].some(slot => slot.room === room)) {
             continue;
           }
           
-          // Verificar se há sobreposição com aulas existentes do mesmo professor
-          let hasOverlap = false;
+          // Encontrar a melhor aula para este horário
+          let bestClass = null;
+          let bestScore = -1;
+          let bestTeacher = null;
           
-          for (const otherTime of timeSlots) {
-            if (otherTime === time) continue;
+          for (const className of eligibleClasses) {
+            // Encontrar o professor para esta aula
+            let teacherForClass: string | null = null;
+            let classDuration = 60; // Default
             
-            if (allocatedTeachers[day][otherTime].includes(teacherForClass) &&
-                isTimeSlotOverlapping(time, classDuration, otherTime, 60)) {
-              hasOverlap = true;
-              break;
+            for (const [teacherId, teacher] of Object.entries(teachers)) {
+              const foundClass = teacher.classes.find(c => c.name === className);
+              if (foundClass) {
+                teacherForClass = teacher.name;
+                classDuration = foundClass.duration;
+                break;
+              }
             }
-          }
-          
-          if (hasOverlap) continue;
-          
-          // Verificar disponibilidade de sala
-          if (optimizedSchedule[day][time].length < 2) {
-            const score = calculateClassScore(className, time, day, preferences);
             
-            // Só alocar se tiver uma pontuação positiva
-            if (score > 0) {
-              const roomNumber = optimizedSchedule[day][time].length + 1;
-              
-              optimizedSchedule[day][time].push({
-                class: className,
-                room: roomNumber,
-                teacher: teacherForClass,
-                score
-              });
-              
-              allocatedTeachers[day][time].push(teacherForClass);
-              allocated = true;
-              
-              console.log(`Alocado ${className} com ${teacherForClass} em ${day} ${time} (Sala ${roomNumber}, Score: ${score.toFixed(2)})`);
+            if (!teacherForClass) continue;
+            
+            // Verificar se este professor já está alocado neste horário
+            if (allocatedTeachers[day][time].includes(teacherForClass)) {
+              continue;
             }
-          }
-        }
-      }
-    }
-
-    // 3. Preencher slots vazios com aulas menos populares
-    console.log("Preenchendo slots vazios com aulas menos populares");
-    
-    for (const day of days) {
-      for (const time of timeSlots) {
-        // Se ainda tiver espaço para mais aulas neste horário
-        if (optimizedSchedule[day][time].length < 2) {
-          // Verificar quais professores já estão alocados neste horário
-          const allocatedTeachersInSlot = allocatedTeachers[day][time];
-          
-          // Tentar alocar professores que não estão alocados neste horário
-          for (const [teacherId, teacher] of Object.entries(teachers)) {
-            // Pular se este professor já está alocado neste horário
-            if (allocatedTeachersInSlot.includes(teacher.name)) continue;
             
             // Verificar se há sobreposição com aulas existentes do mesmo professor
             let hasOverlap = false;
@@ -348,8 +316,8 @@ serve(async (req) => {
             for (const otherTime of timeSlots) {
               if (otherTime === time) continue;
               
-              if (allocatedTeachers[day][otherTime].includes(teacher.name) &&
-                  isTimeSlotOverlapping(time, 60, otherTime, 60)) {
+              if (allocatedTeachers[day][otherTime].includes(teacherForClass) &&
+                  isTimeSlotOverlapping(time, classDuration, otherTime, 60)) {
                 hasOverlap = true;
                 break;
               }
@@ -357,55 +325,161 @@ serve(async (req) => {
             
             if (hasOverlap) continue;
             
-            // Escolher uma aula deste professor que ainda não foi alocada muito
-            const remainingClasses = teacher.classes.filter(c => {
-              // Contar quantas vezes esta aula já foi alocada
-              let count = 0;
-              
-              for (const d of days) {
-                for (const t of timeSlots) {
-                  for (const slot of optimizedSchedule[d][t]) {
-                    if (slot.class === c.name) count++;
-                  }
-                }
-              }
-              
-              // Considerar aulas que foram alocadas menos de 3 vezes
-              return count < 3;
+            // Calcular pontuação para esta aula
+            const score = calculateClassScore(className, time, day, preferences);
+            
+            // Considerar também a distribuição da aula entre os dias para evitar concentração
+            const currentCount = classAllocationCount[className] || 0;
+            const distributionPenalty = currentCount * 0.2; // Penalizar aulas já muito alocadas
+            
+            const finalScore = score - distributionPenalty;
+            
+            if (finalScore > bestScore && finalScore > 0) {
+              bestScore = finalScore;
+              bestClass = className;
+              bestTeacher = teacherForClass;
+            }
+          }
+          
+          // Se encontrou uma aula adequada, alocar
+          if (bestClass && bestTeacher) {
+            optimizedSchedule[day][time].push({
+              class: bestClass,
+              room: room,
+              teacher: bestTeacher,
+              score: bestScore.toFixed(2)
             });
             
-            if (remainingClasses.length === 0) continue;
+            allocatedTeachers[day][time].push(bestTeacher);
+            classAllocationCount[bestClass] = (classAllocationCount[bestClass] || 0) + 1;
             
-            // Ordenar por popularidade
-            remainingClasses.sort((a, b) => 
-              (classPopularity[b.name] || 0) - (classPopularity[a.name] || 0)
-            );
-            
-            const selectedClass = remainingClasses[0];
-            const score = calculateClassScore(selectedClass.name, time, day, preferences);
-            
-            // Só alocar se tiver uma pontuação não muito negativa
-            if (score > -2) {
-              const roomNumber = optimizedSchedule[day][time].length + 1;
-              
-              optimizedSchedule[day][time].push({
-                class: selectedClass.name,
-                room: roomNumber,
-                teacher: teacher.name,
-                score
-              });
-              
-              allocatedTeachers[day][time].push(teacher.name);
-              
-              console.log(`Preenchido slot vazio com ${selectedClass.name} (${teacher.name}) em ${day} ${time} (Sala ${roomNumber}, Score: ${score.toFixed(2)})`);
-            }
-            
-            // Parar se já preencheu todas as salas
-            if (optimizedSchedule[day][time].length >= 2) break;
+            console.log(`Alocado ${bestClass} com ${bestTeacher} em ${day} ${time} (Sala ${room}, Score: ${bestScore.toFixed(2)})`);
           }
         }
       }
     }
+
+    // 4. Verificar e preencher slots vazios se necessário
+    console.log("Verificando slots vazios e preenchendo se necessário");
+    
+    for (const day of days) {
+      for (const time of timeSlots) {
+        // Pular horários fixos de Zumba
+        if ((day === "Terça" && time === "19:00 - 20:00") || 
+            (day === "Quinta" && time === "18:30 - 19:30")) {
+          continue;
+        }
+        
+        // Se ainda tiver espaço para mais aulas neste horário
+        if (optimizedSchedule[day][time].length < 2) {
+          const availableRooms = [1, 2].filter(room => 
+            !optimizedSchedule[day][time].some(slot => slot.room === room)
+          );
+          
+          for (const room of availableRooms) {
+            // Verificar quais professores já estão alocados neste horário
+            const allocatedTeachersInSlot = allocatedTeachers[day][time];
+            const availableTeachers = Object.entries(teachers)
+              .filter(([, teacher]) => !allocatedTeachersInSlot.includes(teacher.name))
+              .map(([, teacher]) => teacher);
+            
+            // Encontrar uma aula adequada dentre os professores disponíveis
+            let allocated = false;
+            
+            for (const teacher of availableTeachers) {
+              if (allocated) break;
+              if (teacher.name === "Professor 1") continue; // Zumba já foi alocada nos horários fixos
+              
+              // Verificar se há sobreposição com aulas existentes do mesmo professor
+              let hasOverlap = false;
+              
+              for (const otherTime of timeSlots) {
+                if (otherTime === time) continue;
+                
+                if (allocatedTeachers[day][otherTime].includes(teacher.name) &&
+                    isTimeSlotOverlapping(time, 60, otherTime, 60)) {
+                  hasOverlap = true;
+                  break;
+                }
+              }
+              
+              if (hasOverlap) continue;
+              
+              // Ordenar as aulas deste professor por popularidade e menor frequência de alocação
+              const eligibleClasses = teacher.classes
+                .map(c => ({
+                  ...c,
+                  popularity: classPopularity[c.name] || 0,
+                  allocCount: classAllocationCount[c.name] || 0
+                }))
+                .sort((a, b) => {
+                  // Priorizar aulas menos alocadas e mais populares
+                  if (a.allocCount !== b.allocCount) {
+                    return a.allocCount - b.allocCount; // Menos alocações primeiro
+                  }
+                  return b.popularity - a.popularity; // Mais populares primeiro
+                });
+              
+              if (eligibleClasses.length > 0) {
+                const selectedClass = eligibleClasses[0];
+                const score = calculateClassScore(selectedClass.name, time, day, preferences);
+                
+                // Só alocar se tiver uma pontuação não muito negativa
+                if (score > -2) {
+                  optimizedSchedule[day][time].push({
+                    class: selectedClass.name,
+                    room: room,
+                    teacher: teacher.name,
+                    score: score.toFixed(2)
+                  });
+                  
+                  allocatedTeachers[day][time].push(teacher.name);
+                  classAllocationCount[selectedClass.name] = (classAllocationCount[selectedClass.name] || 0) + 1;
+                  allocated = true;
+                  
+                  console.log(`Preenchido slot vazio com ${selectedClass.name} (${teacher.name}) em ${day} ${time} (Sala ${room}, Score: ${score.toFixed(2)})`);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // 5. Verificação final para garantir que Zumba só aparece nos horários fixos
+    let zumbaCount = 0;
+    for (const day of days) {
+      for (const time of timeSlots) {
+        const slots = optimizedSchedule[day][time];
+        for (const slot of slots) {
+          if (slot.class === "Zumba") {
+            zumbaCount++;
+            // Verificar se este é um dos horários fixos permitidos
+            const isAllowedTime = 
+              (day === "Terça" && time === "19:00 - 20:00") || 
+              (day === "Quinta" && time === "18:30 - 19:30");
+            
+            if (!isAllowedTime) {
+              console.error(`ERRO: Zumba encontrada em horário não permitido: ${day} ${time}`);
+              // Remover esta alocação indevida
+              optimizedSchedule[day][time] = slots.filter(s => s.class !== "Zumba");
+              zumbaCount--;
+            }
+          }
+        }
+      }
+    }
+    
+    console.log(`Verificação final: Total de aulas de Zumba: ${zumbaCount}`);
+    if (zumbaCount !== 2) {
+      console.warn(`ATENÇÃO: Número incorreto de aulas de Zumba no horário final: ${zumbaCount}`);
+    }
+
+    // 6. Estatísticas de alocação de aulas
+    console.log("Estatísticas de alocação de aulas:");
+    Object.entries(classAllocationCount).forEach(([className, count]) => {
+      console.log(`${className}: ${count} aulas`);
+    });
 
     console.log("Horário gerado com sucesso");
 
