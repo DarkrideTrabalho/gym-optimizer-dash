@@ -258,13 +258,19 @@ const Schedule = () => {
           toast.success("Horário gerado com sucesso na segunda tentativa!");
         } catch (retryError) {
           console.error("Erro na segunda tentativa:", retryError);
-          throw new Error("Não foi possível gerar o horário com a IA após múltiplas tentativas");
+          toast.error("Usando método local de geração de horário como fallback.");
+          
+          // Utilizar o método local como fallback apenas se todas as tentativas com IA falharem
+          const basicSchedule = generateBasicSchedule(preferences);
+          setSchedule(basicSchedule);
+          setUsedEdgeFunction(false);
+          toast.info("Horário gerado com método básico local.");
         }
       }
     } catch (error) {
       console.error("Erro completo:", error);
-      setError("Erro ao gerar horário com IA. Por favor, tente novamente.");
-      toast.error("Erro ao gerar horário com IA. Por favor, tente novamente.");
+      setError("Erro ao gerar horário. Por favor, tente novamente.");
+      toast.error("Erro ao gerar horário. Por favor, tente novamente.");
       setUsedEdgeFunction(false);
     } finally {
       setLoading(false);
