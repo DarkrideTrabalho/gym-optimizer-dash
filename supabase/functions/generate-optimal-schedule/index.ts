@@ -20,7 +20,7 @@ interface Teacher {
 // Definição dos professores e suas aulas com duração
 const teachers: { [key: string]: Teacher } = {
   professor1: {
-    name: "Professor 1",
+    name: "Professor 3",
     classes: [{ name: "Zumba", duration: 60 }],
     fixedSchedule: [
       { day: "Terça", time: "19:00 - 20:00" },
@@ -44,7 +44,7 @@ const teachers: { [key: string]: Teacher } = {
     ]
   },
   professor3: {
-    name: "Professor 3",
+    name: "Professor 1",
     classes: [
       { name: "Pilates", duration: 60 },
       { name: "Power Yoga", duration: 60 },
@@ -321,7 +321,7 @@ serve(async (req) => {
     // Manter contagem de cada aula alocada para distribuição equilibrada
     const classAllocationCount: Record<string, number> = {};
     
-    // 1. PRIMEIRO: Alocar APENAS os horários fixos de Zumba (Professor 1)
+    // 1. PRIMEIRO: Alocar APENAS os horários fixos de Zumba (Professor 3)
     console.log("Alocando horários fixos de Zumba - ESTRITAMENTE nas horas determinadas");
     
     // Limpar quaisquer alocações existentes de Zumba
@@ -334,12 +334,12 @@ serve(async (req) => {
       optimizedSchedule[day][time].push({
         class: "Zumba",
         room: 1,
-        teacher: "Professor 1",
+        teacher: "Professor 3",
         score: calculateClassScore("Zumba", time, day, preferences).toFixed(2)
       });
       
       // Marcar professor e sala como alocados
-      allocatedTeachers[day][time].push("Professor 1");
+      allocatedTeachers[day][time].push("Professor 3");
       allocatedRooms[day][time][1] = true;
       
       classAllocationCount["Zumba"] = (classAllocationCount["Zumba"] || 0) + 1;
@@ -390,7 +390,7 @@ serve(async (req) => {
             for (const className of sortedClasses) {
               // Aplicar as mesmas verificações para sala 2 mesmo em horário de Zumba
               const teacherInfo = findTeacherForClass(className);
-              if (!teacherInfo || teacherInfo.teacherName === "Professor 1") continue;
+              if (!teacherInfo || teacherInfo.teacherName === "Professor 3") continue;
               
               // Verificar se o professor está disponível
               if (!isTeacherAvailable(
@@ -555,7 +555,7 @@ serve(async (req) => {
           
           // Procurar professores disponíveis
           const availableTeachers = Object.entries(teachers).filter(([id, teacher]) => {
-            if (id === "professor1") return false; // Pular Professor 1 (Zumba)
+            if (id === "professor1") return false; // Pular Professor 3 (Zumba)
             return isTeacherAvailable(teacher.name, day, time, allocatedTeachers, teacher);
           });
           
@@ -678,7 +678,7 @@ serve(async (req) => {
         optimizedSchedule["Terça"]["19:00 - 20:00"].push({
           class: "Zumba",
           room: 1,
-          teacher: "Professor 1",
+          teacher: "Professor 3",
           score: "1.00" // Pontuação fixa
         });
       }
@@ -689,7 +689,7 @@ serve(async (req) => {
         optimizedSchedule["Quinta"]["18:30 - 19:30"].push({
           class: "Zumba",
           room: 1,
-          teacher: "Professor 1",
+          teacher: "Professor 3",
           score: "1.00" // Pontuação fixa
         });
       }
