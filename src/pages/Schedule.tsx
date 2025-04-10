@@ -5,6 +5,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { InfoIcon, RefreshCw } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 const Schedule = () => {
   const [schedule, setSchedule] = useState(null);
@@ -327,34 +335,29 @@ const Schedule = () => {
                 </Alert>
               )}
               <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead>
-                    <tr>
-                      <th className="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Horário
-                      </th>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[150px] bg-gray-50">Horário</TableHead>
                       {days.map((day) => (
-                        <th
-                          key={day}
-                          className="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                        >
+                        <TableHead key={day} className="bg-gray-50">
                           {day}
-                        </th>
+                        </TableHead>
                       ))}
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
                     {timeSlots.map((time) => (
-                      <tr key={time}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                      <TableRow key={time}>
+                        <TableCell className="font-medium">
                           {time}
-                        </td>
+                        </TableCell>
                         {days.map((day) => {
                           const slots = schedule?.[day]?.[time] || [];
                           return (
-                            <td
+                            <TableCell
                               key={`${day}-${time}`}
-                              className="px-6 py-4 whitespace-nowrap text-sm text-gray-500"
+                              className="p-2"
                             >
                               <div className="space-y-2">
                                 {slots.map((slot, index) => (
@@ -378,13 +381,13 @@ const Schedule = () => {
                                   </div>
                                 ))}
                               </div>
-                            </td>
+                            </TableCell>
                           );
                         })}
-                      </tr>
+                      </TableRow>
                     ))}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             </>
           )}
