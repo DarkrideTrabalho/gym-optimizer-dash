@@ -803,4 +803,14 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         error: true,
-        message: error.message || "Erro interno
+        message: error.message || "Erro interno"
+      }),
+      { 
+        headers: { 
+          ...corsHeaders,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+  }
+});
