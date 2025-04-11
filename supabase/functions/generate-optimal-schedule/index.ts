@@ -1,4 +1,3 @@
-
 // deno-lint-ignore-file no-explicit-any
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
@@ -56,8 +55,16 @@ const teachers: { [key: string]: Teacher } = {
 
 const days = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"];
 const timeSlots = [
-  "10:00 - 11:30",
-  "16:00 - 20:30",
+  "10:00 - 11:00",
+  "10:30 - 11:30",
+  "16:00 - 17:00",
+  "16:30 - 17:30",
+  "17:00 - 18:00",
+  "17:30 - 18:30",
+  "18:00 - 19:00",
+  "18:30 - 19:30",
+  "19:00 - 20:00",
+  "19:30 - 20:30",
 ];
 
 // Função para calcular a popularidade das aulas
@@ -113,20 +120,20 @@ function calculateDayPopularity(preferences: any[]) {
 
 // Função APRIMORADA para verificar se dois horários se sobrepõem
 function isTimeSlotOverlapping(slot1: string, duration1: number, slot2: string, duration2: number) {
-  // Extrair horários de início e converter para minutos para cálculos precisos
+  // Extrair horários de início e converter para objetos Date para cálculos precisos
   const [startHour1, startMinute1] = slot1.split(' - ')[0].split(':').map(Number);
   const [startHour2, startMinute2] = slot2.split(' - ')[0].split(':').map(Number);
   
-  // Converter para minutos desde o início do dia
-  const startMinutes1 = startHour1 * 60 + startMinute1;
-  const startMinutes2 = startHour2 * 60 + startMinute2;
+  // Criar objetos Date para comparação (usando uma data base arbitrária)
+  const time1 = new Date(2023, 0, 1, startHour1, startMinute1);
+  const time2 = new Date(2023, 0, 1, startHour2, startMinute2);
   
-  // Calcular horários de término em minutos
-  const endMinutes1 = startMinutes1 + duration1;
-  const endMinutes2 = startMinutes2 + duration2;
+  // Calcular horários de término
+  const end1 = new Date(time1.getTime() + duration1 * 60000);
+  const end2 = new Date(time2.getTime() + duration2 * 60000);
   
   // Verificar sobreposição: se o início de um é anterior ao fim do outro e vice-versa
-  const overlaps = startMinutes1 < endMinutes2 && startMinutes2 < endMinutes1;
+  const overlaps = time1 < end2 && time2 < end1;
   
   if (overlaps) {
     console.log(`SOBREPOSIÇÃO DETECTADA: ${slot1} (${duration1}min) sobrepõe com ${slot2} (${duration2}min)`);
@@ -178,25 +185,47 @@ function calculateClassScore(className: string, time: string, day: string, prefe
 }
 
 // Função APRIMORADA para verificar disponibilidade da sala
-function isRoomAvailable(room: number, day: string, time: string, duration: number, occupiedSlots: Array<{time: string, duration: number, room: number}>) {
-  // Verificar se a sala já está ocupada em algum horário que se sobreponha
-  for (const slot of occupiedSlots) {
-    if (slot.room === room && isTimeSlotOverlapping(time, duration, slot.time, slot.duration)) {
-      return false;
+function isRoomAvailable(room: number, day: string, time: string, timeSlotDuration: number, allocatedRooms: Record<string, Record<string, Record<number, boolean>>>) {
+  // Se a sala já está alocada neste horário específico
+  if (allocatedRooms[day][time][room]) {
+    return false;
+  }
+  
+  // Verificar sobreposição com outros horários para esta sala
+  for (const otherTime of timeSlots) {
+    if (otherTime === time) continue;
+    
+    // Se esta sala já está alocada em outro horário, verificar sobreposição
+    if (allocatedRooms[day][otherTime][room]) {
+      // Assumir duração padrão de 60 minutos para o outro horário
+      if (isTimeSlotOverlapping(time, timeSlotDuration, otherTime, 60)) {
+        return false;
+      }
     }
   }
+  
   return true;
 }
 
 // Função para verificar compatibilidade de horário para um professor
-function isTeacherAvailable(teacher: string, day: string, time: string, duration: number, allocatedTeachers: Array<{time: string, duration: number, teacher: string}>) {
-  // Verificar se o professor já está alocado em algum horário que se sobreponha
-  for (const allocation of allocatedTeachers) {
-    if (allocation.teacher === teacher && 
-        isTimeSlotOverlapping(time, duration, allocation.time, allocation.duration)) {
+function isTeacherAvailable(teacher: string, day: string, time: string, allocatedTeachers: Record<string, Record<string, string[]>>, teacherObj: Teacher) {
+  // Verificar se o professor já está alocado neste horário
+  if (allocatedTeachers[day][time].includes(teacher)) {
+    return false;
+  }
+  
+  // Verificar sobreposição com outros horários
+  const classDuration = 60; // Assumimos duração padrão de 60 minutos
+  
+  for (const otherTime of timeSlots) {
+    if (otherTime === time) continue;
+    
+    if (allocatedTeachers[day][otherTime].includes(teacher) && 
+        isTimeSlotOverlapping(time, classDuration, otherTime, 60)) {
       return false;
     }
   }
+  
   return true;
 }
 
@@ -212,7 +241,7 @@ function calculateDistributionScore(className: string, day: string, currentDistr
   const dayCount = currentDistribution[day][className] || 0;
   
   // Cálculo da penalidade por concentração no mesmo dia
-  return -1.5 * dayCount; // Aumentado o peso da penalidade por distribuição
+  return -1 * dayCount; // Quanto mais aulas já tiver neste dia, menor a pontuação
 }
 
 // Função para encontrar o professor de uma determinada aula
@@ -262,16 +291,25 @@ serve(async (req) => {
       });
     });
 
-    // Manter registro de professores já alocados em cada dia
-    const allocatedTeachers: Record<string, Array<{time: string, duration: number, teacher: string}>> = {};
+    // Manter registro de professores já alocados em cada horário/dia
+    const allocatedTeachers: Record<string, Record<string, string[]>> = {};
     days.forEach(day => {
-      allocatedTeachers[day] = [];
+      allocatedTeachers[day] = {};
+      timeSlots.forEach(time => {
+        allocatedTeachers[day][time] = [];
+      });
     });
 
-    // Manter registro de salas já alocadas em cada dia
-    const allocatedRooms: Record<string, Array<{time: string, duration: number, room: number}>> = {};
+    // Manter registro de salas já alocadas em cada horário/dia (NOVO)
+    const allocatedRooms: Record<string, Record<string, Record<number, boolean>>> = {};
     days.forEach(day => {
-      allocatedRooms[day] = [];
+      allocatedRooms[day] = {};
+      timeSlots.forEach(time => {
+        allocatedRooms[day][time] = {
+          1: false,
+          2: false
+        };
+      });
     });
 
     // Manter registro de distribuição de aulas por dia
@@ -286,6 +324,9 @@ serve(async (req) => {
     // 1. PRIMEIRO: Alocar APENAS os horários fixos de Zumba (Professor 3)
     console.log("Alocando horários fixos de Zumba - ESTRITAMENTE nas horas determinadas");
     
+    // Limpar quaisquer alocações existentes de Zumba
+    let zumbaAllocated = 0;
+    
     teachers.professor1.fixedSchedule?.forEach(({ day, time }) => {
       console.log(`Alocando Zumba fixo em ${day} ${time}`);
       
@@ -298,25 +339,21 @@ serve(async (req) => {
       });
       
       // Marcar professor e sala como alocados
-      allocatedTeachers[day].push({
-        time,
-        duration: 60, // Duração padrão de Zumba
-        teacher: "Professor 3"
-      });
-      
-      allocatedRooms[day].push({
-        time,
-        duration: 60,
-        room: 1
-      });
+      allocatedTeachers[day][time].push("Professor 3");
+      allocatedRooms[day][time][1] = true;
       
       classAllocationCount["Zumba"] = (classAllocationCount["Zumba"] || 0) + 1;
       
       // Registrar na distribuição de aulas por dia
       classDistributionByDay[day]["Zumba"] = (classDistributionByDay[day]["Zumba"] || 0) + 1;
+      
+      zumbaAllocated++;
     });
     
-    console.log(`Total de aulas de Zumba alocadas: ${classAllocationCount["Zumba"] || 0}`);
+    console.log(`Total de aulas de Zumba alocadas: ${zumbaAllocated}`);
+    if (zumbaAllocated !== 2) {
+      console.warn("ATENÇÃO: Número incorreto de aulas de Zumba alocadas!");
+    }
 
     // 2. Configurar ordenação de aulas, dias e horários por popularidade
     const sortedClasses = Object.entries(classPopularity)
@@ -341,48 +378,27 @@ serve(async (req) => {
       
       // Para cada horário deste dia
       for (const time of sortedTimeSlots) {
-        // Verificar se este é um horário fixo de Zumba
-        const isZumbaFixedTime = isFixedZumbaTime(day, time);
-        
-        // Para horários com Zumba fixa, processar apenas a sala 2
-        // Para outros horários, processar ambas as salas
-        const roomsToProcess = isZumbaFixedTime ? [2] : [1, 2];
-        
-        for (const room of roomsToProcess) {
-          // Verificar se esta sala já está ocupada neste horário
-          const teacherInfo = room === 1 && isZumbaFixedTime 
-            ? { teacherId: "professor1", teacherName: "Professor 3", duration: 60 }
-            : null;
-          
-          // Se não for o horário fixo de Zumba na sala 1, procurar a melhor aula
-          if (!teacherInfo) {
+        // Pular horários fixos de Zumba (que já foram preenchidos na sala 1)
+        if (isFixedZumbaTime(day, time)) {
+          // Para horários com Zumba, tentar preencher apenas a sala 2
+          if (!allocatedRooms[day][time][2]) {
+            // Encontrar a melhor aula para esta combinação de dia/hora na sala 2
             let bestClass = null;
             let bestScore = -Infinity;
-            let bestTeacherInfo = null;
+            let bestTeacher = null;
             
             for (const className of sortedClasses) {
-              // Encontrar o professor para esta aula
-              const currentTeacherInfo = findTeacherForClass(className);
-              if (!currentTeacherInfo) continue;
+              // Aplicar as mesmas verificações para sala 2 mesmo em horário de Zumba
+              const teacherInfo = findTeacherForClass(className);
+              if (!teacherInfo || teacherInfo.teacherName === "Professor 3") continue;
               
-              // Verificar se o professor está disponível neste horário
+              // Verificar se o professor está disponível
               if (!isTeacherAvailable(
-                  currentTeacherInfo.teacherName, 
-                  day, 
-                  time,
-                  currentTeacherInfo.duration,
-                  allocatedTeachers[day]
-              )) {
-                continue;
-              }
-              
-              // Verificar se a sala está disponível considerando a duração da aula
-              if (!isRoomAvailable(
-                  room, 
+                  teacherInfo.teacherName, 
                   day, 
                   time, 
-                  currentTeacherInfo.duration,
-                  allocatedRooms[day]
+                  allocatedTeachers,
+                  teachers[teacherInfo.teacherId]
               )) {
                 continue;
               }
@@ -390,15 +406,12 @@ serve(async (req) => {
               // Calcular pontuação para esta aula
               const preferenceScore = calculateClassScore(className, time, day, preferences);
               
-              // Calcular penalidade por distribuição no mesmo dia
+              // Calcular penalidade por distribuição
               const distributionScore = calculateDistributionScore(className, day, classDistributionByDay);
               
-              // Calcular penalidade por frequência global da aula na semana
+              // Calcular penalidade por frequência global
               const currentCount = classAllocationCount[className] || 0;
-              const maxClassOccurrences = 4; // Limitar cada aula a no máximo 4 ocorrências na semana
-              if (currentCount >= maxClassOccurrences) continue;
-              
-              const frequencyPenalty = currentCount * 0.2; // Aumentado o peso da penalidade por frequência
+              const frequencyPenalty = currentCount * 0.1;
               
               // Pontuação final
               const finalScore = preferenceScore + distributionScore - frequencyPenalty;
@@ -406,37 +419,106 @@ serve(async (req) => {
               if (finalScore > bestScore) {
                 bestScore = finalScore;
                 bestClass = className;
-                bestTeacherInfo = currentTeacherInfo;
+                bestTeacher = teacherInfo.teacherName;
               }
             }
             
-            // Se encontrou uma aula adequada, alocar
-            if (bestClass && bestTeacherInfo && bestScore > -1) {
+            // Se encontrou uma aula adequada, alocar na sala 2
+            if (bestClass && bestTeacher && bestScore > -1) {
               optimizedSchedule[day][time].push({
                 class: bestClass,
-                room: room,
-                teacher: bestTeacherInfo.teacherName,
+                room: 2,
+                teacher: bestTeacher,
                 score: bestScore.toFixed(2)
               });
               
               // Atualizar registros
-              allocatedTeachers[day].push({
-                time,
-                duration: bestTeacherInfo.duration,
-                teacher: bestTeacherInfo.teacherName
-              });
-              
-              allocatedRooms[day].push({
-                time,
-                duration: bestTeacherInfo.duration,
-                room
-              });
-              
+              allocatedTeachers[day][time].push(bestTeacher);
+              allocatedRooms[day][time][2] = true;
               classAllocationCount[bestClass] = (classAllocationCount[bestClass] || 0) + 1;
               classDistributionByDay[day][bestClass] = (classDistributionByDay[day][bestClass] || 0) + 1;
               
-              console.log(`Alocado ${bestClass} com ${bestTeacherInfo.teacherName} em ${day} ${time} (Sala ${room}, Score: ${bestScore.toFixed(2)})`);
+              console.log(`Alocado ${bestClass} com ${bestTeacher} em ${day} ${time} (Sala 2, Score: ${bestScore.toFixed(2)})`);
             }
+          }
+          
+          continue; // Continuar para o próximo horário após tratar sala 2 em horário de Zumba
+        }
+        
+        // Para horários regulares (sem Zumba fixa), processar ambas as salas
+        for (const room of [1, 2]) {
+          // Verificar se esta sala já está ocupada neste horário
+          if (allocatedRooms[day][time][room]) {
+            continue;
+          }
+          
+          // Encontrar a melhor aula para esta combinação de dia/hora/sala
+          let bestClass = null;
+          let bestScore = -Infinity;
+          let bestTeacher = null;
+          let bestDuration = 60; // Duração padrão
+          
+          for (const className of sortedClasses) {
+            // Encontrar o professor para esta aula
+            const teacherInfo = findTeacherForClass(className);
+            if (!teacherInfo) continue;
+            
+            // Verificar se o professor está disponível neste horário
+            if (!isTeacherAvailable(
+                teacherInfo.teacherName, 
+                day, 
+                time, 
+                allocatedTeachers,
+                teachers[teacherInfo.teacherId]
+            )) {
+              continue;
+            }
+            
+            // Verificar se a sala está disponível considerando a duração da aula
+            if (!isRoomAvailable(room, day, time, teacherInfo.duration, allocatedRooms)) {
+              continue;
+            }
+            
+            // Calcular pontuação para esta aula
+            const preferenceScore = calculateClassScore(className, time, day, preferences);
+            
+            // Calcular penalidade por distribuição
+            const distributionScore = calculateDistributionScore(className, day, classDistributionByDay);
+            
+            // Calcular penalidade por frequência global
+            const currentCount = classAllocationCount[className] || 0;
+            const maxClassOccurrences = 4; // Limitar cada aula a no máximo 4 ocorrências na semana
+            if (currentCount >= maxClassOccurrences) continue;
+            
+            const frequencyPenalty = currentCount * 0.1;
+            
+            // Pontuação final
+            const finalScore = preferenceScore + distributionScore - frequencyPenalty;
+            
+            if (finalScore > bestScore) {
+              bestScore = finalScore;
+              bestClass = className;
+              bestTeacher = teacherInfo.teacherName;
+              bestDuration = teacherInfo.duration;
+            }
+          }
+          
+          // Se encontrou uma aula adequada, alocar
+          if (bestClass && bestTeacher && bestScore > -1) {
+            optimizedSchedule[day][time].push({
+              class: bestClass,
+              room: room,
+              teacher: bestTeacher,
+              score: bestScore.toFixed(2)
+            });
+            
+            // Atualizar registros
+            allocatedTeachers[day][time].push(bestTeacher);
+            allocatedRooms[day][time][room] = true;
+            classAllocationCount[bestClass] = (classAllocationCount[bestClass] || 0) + 1;
+            classDistributionByDay[day][bestClass] = (classDistributionByDay[day][bestClass] || 0) + 1;
+            
+            console.log(`Alocado ${bestClass} com ${bestTeacher} em ${day} ${time} (Sala ${room}, Score: ${bestScore.toFixed(2)})`);
           }
         }
       }
@@ -449,92 +531,32 @@ serve(async (req) => {
     for (const day of days) {
       for (const time of timeSlots) {
         // Pular horários fixos de Zumba que já têm uma aula na sala 1
-        if (isFixedZumbaTime(day, time) && optimizedSchedule[day][time].some(slot => slot.class === "Zumba")) {
-          // Para horários com Zumba, tentar preencher apenas a sala 2 se ainda estiver vazia
-          if (!optimizedSchedule[day][time].some(slot => slot.room === 2)) {
-            // Verificar se a sala 2 está disponível com as regras de sobreposição
-            const isRoom2Available = isRoomAvailable(2, day, time, 60, allocatedRooms[day]);
-            
-            if (isRoom2Available) {
-              // Procurar professores disponíveis
-              const availableTeachers = Object.entries(teachers).filter(([id, teacher]) => {
-                if (id === "professor1") return false; // Pular Professor 3 (Zumba)
-                return isTeacherAvailable(teacher.name, day, time, 60, allocatedTeachers[day]);
-              });
-              
-              if (availableTeachers.length > 0) {
-                // Escolher professor menos utilizado
-                const teacherUsage = availableTeachers.map(([id, teacher]) => {
-                  let count = 0;
-                  days.forEach(d => {
-                    count += allocatedTeachers[d].filter(allocation => 
-                      allocation.teacher === teacher.name).length;
-                  });
-                  return { id, teacher, count };
-                });
-                
-                teacherUsage.sort((a, b) => a.count - b.count);
-                const [teacherId, teacher] = [teacherUsage[0].id, teacherUsage[0].teacher];
-                
-                // Encontrar a aula menos alocada deste professor
-                const teacherClasses = teacher.classes.map(c => ({
-                  ...c,
-                  count: classAllocationCount[c.name] || 0
-                })).sort((a, b) => a.count - b.count);
-                
-                if (teacherClasses.length > 0) {
-                  const selectedClass = teacherClasses[0];
-                  
-                  optimizedSchedule[day][time].push({
-                    class: selectedClass.name,
-                    room: 2,
-                    teacher: teacher.name,
-                    score: "0.50" // Pontuação base para preenchimento forçado
-                  });
-                  
-                  // Atualizar registros
-                  allocatedTeachers[day].push({
-                    time,
-                    duration: selectedClass.duration,
-                    teacher: teacher.name
-                  });
-                  
-                  allocatedRooms[day].push({
-                    time,
-                    duration: selectedClass.duration,
-                    room: 2
-                  });
-                  
-                  classAllocationCount[selectedClass.name] = (classAllocationCount[selectedClass.name] || 0) + 1;
-                  classDistributionByDay[day][selectedClass.name] = (classDistributionByDay[day][selectedClass.name] || 0) + 1;
-                  
-                  console.log(`Preenchido slot vazio com ${selectedClass.name} (${teacher.name}) em ${day} ${time} (Sala 2)`);
-                }
-              }
-            }
-          }
-          
-          continue; // Continuar para o próximo horário após tratar sala 2 em horário de Zumba
+        if (isFixedZumbaTime(day, time)) {
+          continue;
         }
         
-        // Para horários regulares (sem Zumba fixa), processar ambas as salas
+        // Verificar salas disponíveis neste horário
         for (const room of [1, 2]) {
-          // Verificar se esta sala já está ocupada neste horário
-          if (optimizedSchedule[day][time].some(slot => slot.room === room)) {
+          // Se esta sala já está ocupada, pular
+          if (allocatedRooms[day][time][room]) {
             continue;
           }
           
-          // Verificar se a sala está disponível com as regras de sobreposição
-          const isRoomFree = isRoomAvailable(room, day, time, 60, allocatedRooms[day]);
-          
-          if (!isRoomFree) {
+          // Verificar se outras salas neste horário já estão ocupadas
+          const hasOtherRoomOccupied = Object.entries(allocatedRooms[day][time])
+            .some(([r, occupied]) => r !== room.toString() && occupied);
+            
+          // Priorizar horários que já têm pelo menos uma sala ocupada
+          if (!hasOtherRoomOccupied && optimizedSchedule[day][time].length > 0) {
             continue;
           }
+          
+          console.log(`Tentando preencher slot vazio em ${day} ${time}, sala ${room}`);
           
           // Procurar professores disponíveis
           const availableTeachers = Object.entries(teachers).filter(([id, teacher]) => {
             if (id === "professor1") return false; // Pular Professor 3 (Zumba)
-            return isTeacherAvailable(teacher.name, day, time, 60, allocatedTeachers[day]);
+            return isTeacherAvailable(teacher.name, day, time, allocatedTeachers, teacher);
           });
           
           if (availableTeachers.length > 0) {
@@ -542,8 +564,11 @@ serve(async (req) => {
             const teacherUsage = availableTeachers.map(([id, teacher]) => {
               let count = 0;
               days.forEach(d => {
-                count += allocatedTeachers[d].filter(allocation => 
-                  allocation.teacher === teacher.name).length;
+                timeSlots.forEach(t => {
+                  if (allocatedTeachers[d][t].includes(teacher.name)) {
+                    count++;
+                  }
+                });
               });
               return { id, teacher, count };
             });
@@ -560,6 +585,11 @@ serve(async (req) => {
             if (teacherClasses.length > 0) {
               const selectedClass = teacherClasses[0];
               
+              // Verificar se a sala está disponível com esta duração
+              if (!isRoomAvailable(room, day, time, selectedClass.duration, allocatedRooms)) {
+                continue;
+              }
+              
               optimizedSchedule[day][time].push({
                 class: selectedClass.name,
                 room: room,
@@ -568,18 +598,8 @@ serve(async (req) => {
               });
               
               // Atualizar registros
-              allocatedTeachers[day].push({
-                time,
-                duration: selectedClass.duration,
-                teacher: teacher.name
-              });
-              
-              allocatedRooms[day].push({
-                time,
-                duration: selectedClass.duration,
-                room
-              });
-              
+              allocatedTeachers[day][time].push(teacher.name);
+              allocatedRooms[day][time][room] = true;
               classAllocationCount[selectedClass.name] = (classAllocationCount[selectedClass.name] || 0) + 1;
               classDistributionByDay[day][selectedClass.name] = (classDistributionByDay[day][selectedClass.name] || 0) + 1;
               
@@ -590,7 +610,27 @@ serve(async (req) => {
       }
     }
 
-    // 5. Verificação final RIGOROSA para garantir que Zumba só aparece nos horários fixos
+    // 5. Verificar cobertura de salas em cada horário
+    console.log("Verificando cobertura de salas por horário");
+    let totalTimeSlots = days.length * timeSlots.length;
+    let filledSlots = 0;
+    let totalClassesAllocated = 0;
+    
+    for (const day of days) {
+      for (const time of timeSlots) {
+        const slotCount = optimizedSchedule[day][time].length;
+        if (slotCount > 0) {
+          filledSlots++;
+          totalClassesAllocated += slotCount;
+        }
+      }
+    }
+    
+    const coveragePercentage = (filledSlots / totalTimeSlots) * 100;
+    console.log(`Cobertura de horários: ${coveragePercentage.toFixed(2)}% (${filledSlots}/${totalTimeSlots})`);
+    console.log(`Total de aulas alocadas: ${totalClassesAllocated}`);
+    
+    // 6. Verificação final RIGOROSA para garantir que Zumba só aparece nos horários fixos
     console.log("Verificação RIGOROSA final de Zumba");
     let zumbaCount = 0;
     let zumbaLocations: string[] = [];
@@ -620,20 +660,19 @@ serve(async (req) => {
     
     console.log(`Verificação final de Zumba: Total: ${zumbaCount} aulas em: ${zumbaLocations.join(", ")}`);
     
-    // Garantir que os horários fixos de Zumba estão alocados
     if (zumbaCount !== 2) {
       console.warn(`ATENÇÃO: Número incorreto de aulas de Zumba no horário final: ${zumbaCount}`);
       
       // Verificar se os dois horários fixos realmente contêm Zumba
-      let tercaZumba = false;
+      let terçaZumba = false;
       let quintaZumba = false;
       
       for (const location of zumbaLocations) {
-        if (location === "Terça 19:00 - 20:00") tercaZumba = true;
+        if (location === "Terça 19:00 - 20:00") terçaZumba = true;
         if (location === "Quinta 18:30 - 19:30") quintaZumba = true;
       }
       
-      if (!tercaZumba) {
+      if (!terçaZumba) {
         console.error("ERRO CRÍTICO: Zumba não alocada na Terça às 19:00!");
         // Adicionar manualmente
         optimizedSchedule["Terça"]["19:00 - 20:00"].push({
@@ -656,109 +695,95 @@ serve(async (req) => {
       }
     }
 
-    // 6. Verificação e correção final de sobreposições de horários
-    console.log("Verificação final de sobreposições de horários");
-    for (const day of days) {
-      // Verificar sobreposições entre diferentes slots de horário para cada sala
-      const slotsToRemove: Array<{time: string, room: number}> = [];
-      
-      // Para cada sala, verificar sobreposições
-      for (const room of [1, 2]) {
-        // Extrair todas as aulas desta sala neste dia
-        const roomSlots: Array<{
-          time: string, 
-          class: string, 
-          score: string,
-          duration: number
-        }> = [];
-        
-        for (const time of timeSlots) {
-          const slots = optimizedSchedule[day][time];
-          for (const slot of slots) {
-            if (slot.room === room) {
-              const teacherInfo = findTeacherForClass(slot.class);
-              const duration = teacherInfo ? teacherInfo.duration : 60;
-              
-              roomSlots.push({
-                time,
-                class: slot.class,
-                score: slot.score,
-                duration
-              });
-            }
-          }
-        }
-        
-        // Ordenar os slots por horário
-        roomSlots.sort((a, b) => {
-          const [hourA, minuteA] = a.time.split(' - ')[0].split(':').map(Number);
-          const [hourB, minuteB] = b.time.split(' - ')[0].split(':').map(Number);
-          return (hourA * 60 + minuteA) - (hourB * 60 + minuteB);
-        });
-        
-        // Verificar sobreposições entre os slots desta sala
-        for (let i = 0; i < roomSlots.length; i++) {
-          for (let j = i + 1; j < roomSlots.length; j++) {
-            const slotA = roomSlots[i];
-            const slotB = roomSlots[j];
-            
-            if (isTimeSlotOverlapping(slotA.time, slotA.duration, slotB.time, slotB.duration)) {
-              console.log(`Sobreposição detectada em ${day}, sala ${room}: ${slotA.class} (${slotA.time}) e ${slotB.class} (${slotB.time})`);
-              
-              // Se um dos slots for Zumba em horário fixo, manter Zumba
-              if (slotA.class === "Zumba" && isFixedZumbaTime(day, slotA.time)) {
-                slotsToRemove.push({time: slotB.time, room});
-              } 
-              else if (slotB.class === "Zumba" && isFixedZumbaTime(day, slotB.time)) {
-                slotsToRemove.push({time: slotA.time, room});
-              }
-              // Se nenhum for Zumba, remover o de menor pontuação
-              else if (parseFloat(slotA.score) >= parseFloat(slotB.score)) {
-                slotsToRemove.push({time: slotB.time, room});
-              } else {
-                slotsToRemove.push({time: slotA.time, room});
-              }
-            }
-          }
-        }
-      }
-      
-      // Remover os slots com sobreposição
-      for (const {time, room} of slotsToRemove) {
-        console.log(`Removendo slot com sobreposição: ${day} ${time} sala ${room}`);
-        optimizedSchedule[day][time] = optimizedSchedule[day][time].filter(slot => slot.room !== room);
-      }
-    }
-
-    // 7. Balanceamento final: garantir que cada sala tenha aulas bem distribuídas
-    console.log("Realizando balanceamento final de aulas por sala");
-    
-    // Calculando estatísticas finais
-    let totalRoomUsage = { 1: 0, 2: 0 };
-    let slotsWithSingleClass = 0;
-    let totalTimeSlots = days.length * timeSlots.length;
-    
-    for (const day of days) {
-      for (const time of timeSlots) {
-        const slots = optimizedSchedule[day][time];
-        
-        if (slots.length === 1) {
-          slotsWithSingleClass++;
-          totalRoomUsage[slots[0].room]++;
-        } else if (slots.length === 2) {
-          totalRoomUsage[1]++;
-          totalRoomUsage[2]++;
-        }
-      }
-    }
-    
-    console.log(`Estatísticas de uso das salas: Sala 1: ${totalRoomUsage[1]}, Sala 2: ${totalRoomUsage[2]}`);
-    console.log(`Slots com apenas uma aula: ${slotsWithSingleClass}/${totalTimeSlots}`);
-    
+    // 7. Estatísticas finais
     console.log("Estatísticas de alocação de aulas:");
     Object.entries(classAllocationCount).forEach(([className, count]) => {
       console.log(`${className}: ${count} aulas`);
     });
+    
+    console.log("Distribuição por dia:");
+    for (const day of days) {
+      console.log(`${day}: ${Object.keys(classDistributionByDay[day]).length} tipos de aulas diferentes`);
+    }
+
+    // 8. Verificação e correção final de sobreposições de horários
+    console.log("Verificação final de sobreposições de horários");
+    for (const day of days) {
+      // Criar uma lista de todas as aulas alocadas neste dia
+      const dayClasses: Array<{
+        time: string;
+        room: number;
+        className: string;
+        teacher: string;
+        score: string;
+        duration: number;
+      }> = [];
+      
+      for (const time of timeSlots) {
+        const slots = optimizedSchedule[day][time];
+        for (const slot of slots) {
+          const teacherInfo = findTeacherForClass(slot.class);
+          const duration = teacherInfo ? teacherInfo.duration : 60;
+          
+          dayClasses.push({
+            time,
+            room: slot.room,
+            className: slot.class,
+            teacher: slot.teacher,
+            score: slot.score,
+            duration
+          });
+        }
+      }
+      
+      // Ordenar as aulas por hora de início para verificação
+      dayClasses.sort((a, b) => {
+        const [hourA, minuteA] = a.time.split(' - ')[0].split(':').map(Number);
+        const [hourB, minuteB] = b.time.split(' - ')[0].split(':').map(Number);
+        return (hourA * 60 + minuteA) - (hourB * 60 + minuteB);
+      });
+      
+      // Verificar sobreposições e remover conflitos
+      const conflictsToRemove: Array<{time: string, room: number}> = [];
+      
+      for (let i = 0; i < dayClasses.length; i++) {
+        for (let j = i + 1; j < dayClasses.length; j++) {
+          const classA = dayClasses[i];
+          const classB = dayClasses[j];
+          
+          // Se são na mesma sala e se sobrepõem
+          if (classA.room === classB.room && 
+              isTimeSlotOverlapping(classA.time, classA.duration, classB.time, classB.duration)) {
+            console.error(`CONFLITO DETECTADO: ${classA.className} (${classA.time}, Sala ${classA.room}) ` +
+                          `sobrepõe com ${classB.className} (${classB.time}, Sala ${classB.room})`);
+            
+            // Se um dos horários for Zumba fixa, manter Zumba e remover o outro
+            if (classA.className === "Zumba" && isFixedZumbaTime(day, classA.time)) {
+              conflictsToRemove.push({time: classB.time, room: classB.room});
+            } 
+            else if (classB.className === "Zumba" && isFixedZumbaTime(day, classB.time)) {
+              conflictsToRemove.push({time: classA.time, room: classA.room});
+            }
+            // Senão, remover o com menor pontuação
+            else if (parseFloat(classA.score) >= parseFloat(classB.score)) {
+              conflictsToRemove.push({time: classB.time, room: classB.room});
+            } else {
+              conflictsToRemove.push({time: classA.time, room: classA.room});
+            }
+          }
+        }
+      }
+      
+      // Remover as aulas conflitantes
+      for (const conflict of conflictsToRemove) {
+        console.log(`Removendo aula em conflito: ${day} ${conflict.time} Sala ${conflict.room}`);
+        optimizedSchedule[day][conflict.time] = optimizedSchedule[day][conflict.time].filter(
+          slot => slot.room !== conflict.room
+        );
+      }
+    }
+
+    console.log("Horário gerado com sucesso");
 
     return new Response(
       JSON.stringify({ 
@@ -778,16 +803,4 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         error: true,
-        message: error.message || "Erro interno ao gerar horário"
-      }),
-      { 
-        headers: { 
-          ...corsHeaders,
-          'Content-Type': 'application/json',
-          'status': '500'
-        },
-        status: 500
-      }
-    );
-  }
-});
+        message: error.message || "Erro interno
