@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -21,95 +20,93 @@ const Schedule = () => {
   const [usedEdgeFunction, setUsedEdgeFunction] = useState(true);
 
   const days = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"];
-  const timeSlots = [
-    "10:00 - 11:00",
-    "10:30 - 11:30",
-    "16:00 - 17:00",
-    "16:30 - 17:30",
-    "17:00 - 18:00",
-    "17:30 - 18:30",
-    "18:00 - 19:00",
-    "18:30 - 19:30",
-    "19:00 - 20:00",
-    "19:30 - 20:30",
-  ];
+  const timeSlots = ["10:00 - 11:30", "16:00 - 20:30"];
 
   // Lista de aulas e professores predefinidos para usar como fallback
   const fallbackClasses = {
-    "Zumba": "Professor 1",
+    Zumba: "Professor 1",
     "Body Upper": "Professor 2",
     "Core Express": "Professor 2",
     "Fit Step": "Professor 2",
-    "Fullbody": "Professor 2",
-    "GAP": "Professor 2",
-    "Hiit": "Professor 2",
-    "Localizada": "Professor 2",
-    "Mobistretching": "Professor 2",
+    Fullbody: "Professor 2",
+    GAP: "Professor 2",
+    Hiit: "Professor 2",
+    Localizada: "Professor 2",
+    Mobistretching: "Professor 2",
     "Treino Livre": "Professor 2",
-    "Tabatta": "Professor 2",
+    Tabatta: "Professor 2",
     "Vitta Core legs": "Professor 2",
-    "Pilates": "Professor 3",
+    Pilates: "Professor 3",
     "Power Yoga": "Professor 3",
-    "Yoga Flow": "Professor 3"
+    "Yoga Flow": "Professor 3",
   };
 
   const generateBasicSchedule = (preferences) => {
     try {
       console.log("Gerando horário básico com dados locais");
-      
+
       // Criar um horário básico
       const scheduleTemplate = {};
-      days.forEach(day => {
+      days.forEach((day) => {
         scheduleTemplate[day] = {};
-        timeSlots.forEach(slot => {
+        timeSlots.forEach((slot) => {
           scheduleTemplate[day][slot] = [];
         });
       });
 
       // Adicionar aulas fixas do Professor 1 (Zumba)
-      scheduleTemplate["Terça"]["19:00 - 20:00"] = [{
-        class: "Zumba",
-        teacher: "Professor 1",
-        room: 1,
-        score: 1.0
-      }];
-      
-      scheduleTemplate["Quinta"]["18:30 - 19:30"] = [{
-        class: "Zumba",
-        teacher: "Professor 1",
-        room: 1,
-        score: 1.0
-      }];
+      scheduleTemplate["Terça"]["19:00 - 20:00"] = [
+        {
+          class: "Zumba",
+          teacher: "Professor 1",
+          room: 1,
+          score: 1.0,
+        },
+      ];
+
+      scheduleTemplate["Quinta"]["18:30 - 19:30"] = [
+        {
+          class: "Zumba",
+          teacher: "Professor 1",
+          room: 1,
+          score: 1.0,
+        },
+      ];
 
       // Distribuir outras aulas com base nas preferências
       const classPopularity = {};
       const classesAssigned = new Set(["Zumba"]);
-      
+
       // Calcular popularidade das aulas
-      preferences.forEach(pref => {
-        [pref.favorite_class_1, pref.favorite_class_2, pref.favorite_class_3, 
-         pref.favorite_class_4, pref.favorite_class_5].forEach(cls => {
+      preferences.forEach((pref) => {
+        [
+          pref.favorite_class_1,
+          pref.favorite_class_2,
+          pref.favorite_class_3,
+          pref.favorite_class_4,
+          pref.favorite_class_5,
+        ].forEach((cls) => {
           if (cls && cls !== "Zumba") {
             classPopularity[cls] = (classPopularity[cls] || 0) + 1;
           }
         });
       });
-      
+
       // Ordenar aulas por popularidade
-      const sortedClasses = Object.keys(classPopularity).sort((a, b) => 
-        classPopularity[b] - classPopularity[a]
+      const sortedClasses = Object.keys(classPopularity).sort(
+        (a, b) => classPopularity[b] - classPopularity[a]
       );
-      
+
       // Determinar dias e horários mais populares
       const dayPopularity = {};
       const timePopularity = {};
-      
-      preferences.forEach(pref => {
-        (pref.preferred_days || []).forEach(day => {
+
+      preferences.forEach((pref) => {
+        (pref.preferred_days || []).forEach((day) => {
           dayPopularity[day] = (dayPopularity[day] || 0) + 1;
         });
-        
-        (pref.time_blocks || []).forEach(time => {
+
+        (pref.time_blocks || []).forEach((time) => {
           timePopularity[time] = (timePopularity[time] || 0) + 1;
         });
       });
@@ -120,48 +117,61 @@ const Schedule = () => {
         if (!classesAssigned.has(className)) {
           const professor = fallbackClasses[className];
           if (!professor) continue;
-          
+
           // Encontrar o melhor slot para esta aula
           let bestScore = -1;
           let bestDay = null;
           let bestTime = null;
           let bestRoom = null;
-          
+
           for (const day of days) {
             // Pular dias com aulas fixas de Zumba para Professor 2 (se for uma aula do Professor 2)
-            if (professor === "Professor 2" && 
-                ((day === "Terça" && className !== "Zumba") || 
-                 (day === "Quinta" && className !== "Zumba"))) {
+            if (
+              professor === "Professor 2" &&
+              ((day === "Terça" && className !== "Zumba") ||
+                (day === "Quinta" && className !== "Zumba"))
+            ) {
               continue;
             }
-            
+
             for (const timeSlot of timeSlots) {
               // Verificar se este slot já está ocupado por este professor
               let slotOccupied = false;
               for (const room of [1, 2]) {
-                if (scheduleTemplate[day][timeSlot].some(
-                  slot => slot.teacher === professor)) {
+                if (
+                  scheduleTemplate[day][timeSlot].some(
+                    (slot) => slot.teacher === professor
+                  )
+                ) {
                   slotOccupied = true;
                   break;
                 }
               }
-              
+
               if (slotOccupied) continue;
-              
+
               // Calcular pontuação para este slot
               const dayScore = dayPopularity[day] || 0;
               const timeScore = timePopularity[timeSlot] || 0;
               const totalScore = dayScore + timeScore;
-              
+
               if (totalScore > bestScore) {
                 // Verificar qual sala está disponível
                 let availableRoom = null;
-                if (!scheduleTemplate[day][timeSlot].some(slot => slot.room === 1)) {
+                if (
+                  !scheduleTemplate[day][timeSlot].some(
+                    (slot) => slot.room === 1
+                  )
+                ) {
                   availableRoom = 1;
-                } else if (!scheduleTemplate[day][timeSlot].some(slot => slot.room === 2)) {
+                } else if (
+                  !scheduleTemplate[day][timeSlot].some(
+                    (slot) => slot.room === 2
+                  )
+                ) {
                   availableRoom = 2;
                 }
-                
+
                 if (availableRoom) {
                   bestScore = totalScore;
                   bestDay = day;
@@ -171,20 +181,20 @@ const Schedule = () => {
               }
             }
           }
-          
+
           if (bestDay && bestTime && bestRoom) {
             scheduleTemplate[bestDay][bestTime].push({
               class: className,
               teacher: professor,
               room: bestRoom,
-              score: (bestScore / 10).toFixed(2) // Normalizar pontuação
+              score: (bestScore / 10).toFixed(2), // Normalizar pontuação
             });
-            
+
             classesAssigned.add(className);
           }
         }
       }
-      
+
       return scheduleTemplate;
     } catch (error) {
       console.error("Erro ao gerar horário básico:", error);
@@ -196,7 +206,7 @@ const Schedule = () => {
     setLoading(true);
     setError(null);
     setUsedEdgeFunction(true);
-    
+
     try {
       console.log("Iniciando geração de horário com IA");
 
@@ -206,7 +216,7 @@ const Schedule = () => {
         .select("*");
 
       console.log("Preferências:", preferences);
-      
+
       if (preferencesError) {
         console.error("Erro ao buscar preferências:", preferencesError);
         throw preferencesError;
@@ -229,7 +239,7 @@ const Schedule = () => {
         );
 
         console.log("Resposta da edge function:", data);
-        
+
         if (error) {
           console.error("Erro da edge function:", error);
           throw error;
@@ -239,35 +249,35 @@ const Schedule = () => {
           console.error("Resposta inválida da edge function");
           throw new Error("Resposta inválida da edge function");
         }
-        
+
         setSchedule(data.schedule);
         setUsedEdgeFunction(true);
         toast.success("Horário gerado com sucesso pela IA!");
       } catch (edgeFunctionError) {
         console.error("Erro ao chamar edge function:", edgeFunctionError);
-        
+
         // Tentar novamente a edge function em caso de falha
         toast.error("Erro na primeira tentativa. Tentando novamente...");
-        
+
         try {
-          const { data: retryData, error: retryError } = await supabase.functions.invoke(
-            "generate-optimal-schedule",
-            {
+          const { data: retryData, error: retryError } =
+            await supabase.functions.invoke("generate-optimal-schedule", {
               body: { preferences },
-            }
-          );
-          
+            });
+
           if (retryError || !retryData || !retryData.schedule) {
             throw new Error("Falha na segunda tentativa");
           }
-          
+
           setSchedule(retryData.schedule);
           setUsedEdgeFunction(true);
           toast.success("Horário gerado com sucesso na segunda tentativa!");
         } catch (retryError) {
           console.error("Erro na segunda tentativa:", retryError);
-          toast.error("Usando método local de geração de horário como fallback.");
-          
+          toast.error(
+            "Usando método local de geração de horário como fallback."
+          );
+
           // Utilizar o método local como fallback apenas se todas as tentativas com IA falharem
           const basicSchedule = generateBasicSchedule(preferences);
           setSchedule(basicSchedule);
@@ -298,8 +308,8 @@ const Schedule = () => {
                 gerar um horário otimizado.
               </p>
             </div>
-            <Button 
-              onClick={generateSchedule} 
+            <Button
+              onClick={generateSchedule}
               disabled={loading}
               className="flex items-center gap-2"
             >
@@ -329,8 +339,8 @@ const Schedule = () => {
                   <InfoIcon className="h-4 w-4 text-amber-500" />
                   <AlertTitle className="text-amber-800">Aviso</AlertTitle>
                   <AlertDescription className="text-amber-700">
-                    O horário foi gerado usando o método básico, sem o uso completo da IA.
-                    Tente novamente para melhor otimização.
+                    O horário foi gerado usando o método básico, sem o uso
+                    completo da IA. Tente novamente para melhor otimização.
                   </AlertDescription>
                 </Alert>
               )}
@@ -338,7 +348,9 @@ const Schedule = () => {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[150px] bg-gray-50">Horário</TableHead>
+                      <TableHead className="w-[150px] bg-gray-50">
+                        Horário
+                      </TableHead>
                       {days.map((day) => (
                         <TableHead key={day} className="bg-gray-50">
                           {day}
@@ -349,16 +361,11 @@ const Schedule = () => {
                   <TableBody>
                     {timeSlots.map((time) => (
                       <TableRow key={time}>
-                        <TableCell className="font-medium">
-                          {time}
-                        </TableCell>
+                        <TableCell className="font-medium">{time}</TableCell>
                         {days.map((day) => {
                           const slots = schedule?.[day]?.[time] || [];
                           return (
-                            <TableCell
-                              key={`${day}-${time}`}
-                              className="p-2"
-                            >
+                            <TableCell key={`${day}-${time}`} className="p-2">
                               <div className="space-y-2">
                                 {slots.map((slot, index) => (
                                   <div
@@ -412,7 +419,8 @@ const Schedule = () => {
               </p>
               {usedEdgeFunction && (
                 <p className="text-sm text-emerald-600 mt-2 font-medium">
-                  Este horário foi gerado usando o algoritmo de IA otimizado para máxima eficiência.
+                  Este horário foi gerado usando o algoritmo de IA otimizado
+                  para máxima eficiência.
                 </p>
               )}
             </div>
